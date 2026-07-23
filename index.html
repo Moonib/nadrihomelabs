@@ -725,6 +725,23 @@ mkdir -p /mnt/media/downloads</span>
 <p>Bind mount that same NAS folder into the Docker LXC, exactly the same trick used for Jellyfin, run from the Proxmox host:</p>
 <span class="cmd">pct set &lt;docker-id&gt; -mp0 /mnt/media,mp=/media</span>
 
+<div class="box learn"><span class="lbl">Understand this: hand the container a TUN device first, or the VPN can't start</span>
+The VPN piece of this stack (gluetun, further down) builds its tunnel using a small virtual network device called a <b>TUN device</b>, which on Linux lives at <code>/dev/net/tun</code>. A normal full machine has one, but a lightweight LXC container doesn't get one by default, because it shares the Proxmox host's kernel and the host doesn't pass that particular device through automatically. If you skip this, the stack will still pull and start most containers, but gluetun fails with an error like <code>no such file or directory</code> pointing at <code>/dev/net/tun</code>. Passing it through once, before the first run, avoids that entirely.</div>
+<p>Run these on the <b>Proxmox host</b>. First make sure the host has the TUN module loaded and set to load on every future boot (both commands print nothing, which is normal, silence means success):</p>
+<span class="cmd">modprobe tun
+echo tun >> /etc/modules-load.d/tun.conf</span>
+<p>Then edit the Docker container's config file to pass the device through:</p>
+<span class="cmd">nano /etc/pve/lxc/&lt;docker-id&gt;.conf</span>
+<p>Add these two lines at the bottom, then save and exit:</p>
+<span class="cmd">lxc.cgroup2.devices.allow: c 10:200 rwm
+lxc.mount.entry: /dev/net/tun dev/net/tun none bind,create=file</span>
+<div class="why"><b>Reading the two lines:</b> the first tells the host "this container is allowed to use that class of device," and the second actually mounts the device into the container at <code>/dev/net/tun</code>. The <code>10:200</code> is simply the fixed identifying number Linux uses for the TUN device, the same on every machine.</div>
+<p>Restart the container so it picks up the change (a full stop and start from the host, not a reboot from inside), then confirm the device is now present inside it:</p>
+<span class="cmd">pct stop &lt;docker-id&gt;
+pct start &lt;docker-id&gt;
+ls -l /dev/net/tun</span>
+<div class="see">You'll see: <code>ls</code> lists the device rather than reporting "no such file". Now gluetun will be able to build its tunnel when the stack starts.</div>
+
 <h3>Building the stack: the docker-compose.yml file</h3>
 <p>Inside the Docker container, make a folder to keep the stack's own files together, and create the recipe file itself:</p>
 <span class="cmd">mkdir -p /opt/arrstack
