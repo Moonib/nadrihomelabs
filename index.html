@@ -116,7 +116,7 @@
   <div class="phase">Part 3 · Reach it anywhere, and make it self-sufficient</div>
   <ol start="9">
     <li><a href="#remote">Remote access: the whole of home networking, and security</a></li>
-    <li><a href="#automate">Automating your media library: Sonarr, Radarr and a VPN</a></li>
+    <li><a href="#automate">Automating your media library: Sonarr, Radarr, Prowlarr and qBittorrent, behind a VPN</a></li>
     <li><a href="#dashboard">One front door for the family: a dashboard, a memorable address, and no ports</a></li>
   </ol>
   <div class="phase">Part 4 · Keep it running, and where to take it next</div>
@@ -683,109 +683,183 @@ This one section covers <b>NAT</b>, <b>firewalls</b>, <b>public/private IPs</b>,
 <p class="a">CIDR notation for a block of 256 addresses (192.168.1.0–.255), where the first 24 bits are the fixed network portion.</p></div>
 
 <!-- ===================== AUTOMATE ===================== -->
-<h2 id="automate"><span class="n">10.</span>Automating your media library: Sonarr, Radarr and a VPN</h2>
-<p>Up to now, getting a new film or show into Jellyfin has meant copying the file across by hand. This section removes that chore: you set up two organisers that file new content into the right place automatically, decide on a tidy folder structure, and, for the part that reaches out to the internet, route it safely through a VPN. This is what turns the build from "a media player I feed manually" into "a library that keeps itself current."</p>
+<h2 id="automate"><span class="n">10.</span>Automating your media library: Sonarr, Radarr, Prowlarr and qBittorrent, behind a VPN</h2>
+<p>Up to now, getting a new film or show into Jellyfin has meant copying the file across by hand. This section removes that chore properly: one new container hosts a small set of programs that find, fetch, rename and file new content automatically, then hand it to Jellyfin the moment it lands, with the one piece that reaches out to other people's devices routed safely through a VPN. This is what turns the build from "a media player I feed manually" into "a library that keeps itself current."</p>
 
-<h3>Letting new content organise itself: Sonarr and Radarr</h3>
-<div class="box learn"><span class="lbl">Understand this: what these two actually do, and what they don't</span>
-Jellyfin only ever plays what's already sitting on your NAS drive. <b>Sonarr</b> (for TV shows) and <b>Radarr</b> (for films) are separate little organisers whose only job is to watch a folder, rename and sort whatever lands in it properly, and tell Jellyfin the second something new appears, so it shows up without you manually copying files across each time. On their own, straight out of the box, neither one knows how to find or fetch anything at all. That's a distinct, separate piece, covered honestly below.</div>
+<div class="box learn"><span class="lbl">Understand this: the four pieces and the one job each does</span>
+Four small programs work together here, each with one clear job, so it's worth knowing what each one is before any of them get installed. <b>Sonarr</b> and <b>Radarr</b> are organisers, one for TV shows and one for films, that know what you want and file it correctly once it arrives, matching it to the right show or movie and renaming it sensibly. Neither one can search anywhere for content on its own. <b>Prowlarr</b> is an indexer manager, a single place where you tell the whole stack which indexers (search sources) to use, so you configure that list once in Prowlarr rather than separately inside Sonarr and inside Radarr. <b>qBittorrent</b> is the download client, the program that actually connects out to other people's devices to fetch a file once Sonarr, Radarr and Prowlarr have between them found and requested it. That last one, because it talks directly to strangers' devices rather than one central server, is the piece that gets routed through the VPN below.</div>
 
-<div class="box learn"><span class="lbl">Understand this: why anime gets its own folder</span>
-Sonarr and Radarr don't care what you name folders, but a three-way split, anime, tv, and movies, genuinely earns its keep here rather than just two. Anime is frequently numbered differently to Western TV, often one continuous episode count running across the whole show rather than resetting each season, called <b>absolute numbering</b>. Keeping it in its own folder makes that easy to handle correctly, and keeps Jellyfin's browsing clean too, rather than one long mixed list of everything. You don't need a third app for this though, one Sonarr can manage both anime and regular TV, just pointed at two different folders and with each show individually marked with the right type.</div>
+<h3>One box, many small programs: Docker</h3>
+<div class="box learn"><span class="lbl">Understand this: why these four don't each get their own Proxmox container</span>
+Every container so far, Pi-hole, Jellyfin, Homarr and the rest, has been its own separate Proxmox <b>LXC container</b>, a full, self-contained mini install of Linux, with its own login, its own file system, its own everything. That's a great fit for a handful of big, standalone services, but it starts to feel heavy for a cluster of small programs that are meant to be wired together and talk to each other constantly. <b>Docker</b> solves that differently: instead of several full mini-Linux installs, one single LXC container runs a program called <b>Docker</b>, and Docker in turn runs each of these four apps as its own lightweight, self-contained package, called a <b>container image</b> in Docker's own vocabulary (a different, smaller use of the word "container" than the Proxmox LXC kind, worth not confusing the two). All four sit inside that one Docker LXC, share its resources efficiently, and can be told to talk to one another by name.</div>
 
-<p>Decide where organised content will live, as three subfolders of your existing NAS mount, run from the Proxmox host:</p>
+<div class="box learn"><span class="lbl">Understand this: Docker Compose, a recipe file for the whole stack</span>
+Rather than clicking through a separate install for each of the four apps, Docker is normally driven from one plain text file, a <b>docker-compose.yml</b> file, that lists every app you want running, what image to use for each, which folders it should be able to see, and which network ports it needs. Run one command against that file and Docker reads the whole list and builds, starts and connects everything it describes in one go. Change the file later and re-run the same command to update the whole stack to match. That one file becomes the actual master record of your entire media stack going forward.</div>
+
+<p>Create the Docker host itself as its own privileged LXC, same community-scripts pattern as everything else, run from the Proxmox host:</p>
+<span class="cmd">bash -c "$(curl -fsSL https://raw.githubusercontent.com/community-scripts/ProxmoxVE/main/ct/docker.sh)"</span>
+<div class="why"><b>Why this script specifically, and why privileged:</b> this particular installer builds a Debian container with <b>nesting</b> already switched on for you, meaning the container is allowed to run its own containers inside itself, which is exactly what Docker needs to do and isn't turned on by default. It also sets Docker and Docker Compose up ready to use. Privileged sidesteps the same permissions mismatch covered in the storage section, where an unprivileged container's internal "root" isn't recognised by the host, which matters here since this container will be reaching into your NAS folder.</div>
+<p>Defaults: 2 cores, 4GB memory, 12GB disk, reasonable for four lightweight apps; give it more disk if you expect a lot of local activity in it.</p>
+
+<p>Decide where organised content will live, as subfolders of your existing NAS mount, run from the Proxmox host. This adds one new folder to the anime/tv/movies split from earlier, <code>downloads</code>, a landing spot for anything qBittorrent fetches before Sonarr or Radarr renames and moves it into its proper home:</p>
 <span class="cmd">mkdir -p /mnt/media/anime
 mkdir -p /mnt/media/tv
-mkdir -p /mnt/media/movies</span>
+mkdir -p /mnt/media/movies
+mkdir -p /mnt/media/downloads</span>
 
-<p>Create the two apps as their own containers, same community-scripts pattern used for Jellyfin and Fladder, run from the Proxmox host:</p>
-<span class="cmd">bash -c "$(curl -fsSL https://raw.githubusercontent.com/community-scripts/ProxmoxVE/main/ct/sonarr.sh)"
-bash -c "$(curl -fsSL https://raw.githubusercontent.com/community-scripts/ProxmoxVE/main/ct/radarr.sh)"</span>
-<div class="why"><b>Privileged or not:</b> to sidestep the same permissions mismatch covered in the storage section, where an unprivileged container's internal "root" isn't recognised by the host, it's simplest to create both as privileged here too.</div>
+<p>Bind mount that same NAS folder into the Docker LXC, exactly the same trick used for Jellyfin, run from the Proxmox host:</p>
+<span class="cmd">pct set &lt;docker-id&gt; -mp0 /mnt/media,mp=/media</span>
 
-<p>Bind mount your NAS folder into each one, exactly the same trick used for Jellyfin, run from the host:</p>
-<span class="cmd">pct set &lt;sonarr-id&gt; -mp0 /mnt/media,mp=/media
-pct set &lt;radarr-id&gt; -mp0 /mnt/media,mp=/media</span>
+<h3>Building the stack: the docker-compose.yml file</h3>
+<p>Inside the Docker container, make a folder to keep the stack's own files together, and create the recipe file itself:</p>
+<span class="cmd">mkdir -p /opt/arrstack
+cd /opt/arrstack
+nano docker-compose.yml</span>
+<p>Paste in the following, then save and exit (in nano, <code>Ctrl+O</code>, Enter, <code>Ctrl+X</code>):</p>
+<span class="cmd">services:
+  gluetun:
+    image: qmcgaw/gluetun
+    container_name: gluetun
+    cap_add:
+      - NET_ADMIN
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    ports:
+      - 8080:8080
+      - 6881:6881
+      - 6881:6881/udp
+    environment:
+      - VPN_SERVICE_PROVIDER=airvpn
+      - VPN_TYPE=wireguard
+      - WIREGUARD_PRIVATE_KEY=paste_your_private_key_here
+      - WIREGUARD_ADDRESSES=paste_your_address_here
+      - FIREWALL_OUTBOUND_SUBNETS=192.168.1.0/24
+    restart: unless-stopped
 
-<p>Open Sonarr's own web address, go to <b>Settings → Media Management → Root Folders</b>, and add both <code>/media/anime</code> and <code>/media/tv</code> as two separate root folders, rather than just the one. Then, whenever you add a new show, Sonarr lets you choose which of the two root folders it goes into right there on the add screen, and also lets you set its <b>Series Type</b> to <code>Anime</code> or <code>Standard</code> for that title, which is what actually fixes the episode numbering behaviour, the folder alone doesn't do that automatically. Open Radarr's address and point its single root folder at <code>/media/movies</code> as before, since films don't have this same numbering quirk.</p>
+  qbittorrent:
+    image: lscr.io/linuxserver/qbittorrent
+    container_name: qbittorrent
+    network_mode: "service:gluetun"
+    depends_on:
+      - gluetun
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Etc/UTC
+      - WEBUI_PORT=8080
+    volumes:
+      - ./qbittorrent/config:/config
+      - /media/downloads:/downloads
+    restart: unless-stopped
+
+  prowlarr:
+    image: lscr.io/linuxserver/prowlarr
+    container_name: prowlarr
+    ports:
+      - 9696:9696
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Etc/UTC
+    volumes:
+      - ./prowlarr/config:/config
+    restart: unless-stopped
+
+  sonarr:
+    image: lscr.io/linuxserver/sonarr
+    container_name: sonarr
+    ports:
+      - 8989:8989
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Etc/UTC
+    volumes:
+      - ./sonarr/config:/config
+      - /media:/media
+    restart: unless-stopped
+
+  radarr:
+    image: lscr.io/linuxserver/radarr
+    container_name: radarr
+    ports:
+      - 7878:7878
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Etc/UTC
+    volumes:
+      - ./radarr/config:/config
+      - /media:/media
+    restart: unless-stopped</span>
+<div class="why"><b>Reading the pieces that repeat:</b> <code>image</code> says which pre-built package to run. <code>ports</code> says which door numbers on the Docker host actually reach that app, the same idea as every <code>&lt;ip&gt;:port</code> address used throughout this guide. <code>volumes</code> says which real folders on disk a container is allowed to see, mapped to a path inside it, the <code>./sonarr/config</code> style paths are just small folders Docker will create right there in <code>/opt/arrstack</code> to hold each app's own settings, separate from your actual media. <code>PUID</code>/<code>PGID</code> are the Linux user and group numbers these apps run as internally, matching them to a real user is what avoids the same kind of permissions mismatch met earlier with unprivileged containers.</div>
+
+<p>Bring the whole stack up with one command, run from <code>/opt/arrstack</code>:</p>
+<span class="cmd">docker compose up -d</span>
+<div class="see">You'll see: Docker pulling each image the first time (may take a few minutes), then <code>docker ps</code> listing all five containers (gluetun, qbittorrent, prowlarr, sonarr, radarr) as running.</div>
+
+<h3>Wiring the VPN kill switch the Docker way: gluetun</h3>
+<div class="box learn"><span class="lbl">Understand this: what gluetun actually is, and why qBittorrent has no compose entry of its own network-wise</span>
+<b>gluetun</b> is a small container whose only job is holding a VPN tunnel open and enforcing a kill switch around it, the exact same principle covered for other setups, if the tunnel drops, nothing gets out, rather than quietly falling back to a normal, visible connection. The line <code>network_mode: "service:gluetun"</code> on qBittorrent is what actually enforces that, in plain terms it means qBittorrent is given no network connection of its own at all, it borrows gluetun's entirely. The real jargon for "a program's own private slice of networking" is a <b>network namespace</b>, and sharing one this way means qBittorrent physically has no other path to the internet to fall back to, even by accident. If gluetun's tunnel goes down, qBittorrent doesn't get a normal connection instead, it gets nothing, which is what a kill switch means.</div>
+
+<h4>Step A, get your AirVPN WireGuard details</h4>
+<p>Log into AirVPN's own website, open their <b>"Config Generator"</b> in the client area, choose <b>WireGuard</b> as the protocol and generate a configuration for a server of your choosing, then download the resulting <code>.conf</code> file. Open it in a text editor and note two lines from inside it: the <code>PrivateKey</code> line and the <code>Address</code> line, both under <code>[Interface]</code>.</p>
+
+<h4>Step B, fill in the compose file</h4>
+<p>Back in <code>docker-compose.yml</code>, replace <code>paste_your_private_key_here</code> with that <code>PrivateKey</code> value, and <code>paste_your_address_here</code> with that <code>Address</code> value, then apply the change:</p>
+<span class="cmd">docker compose up -d</span>
+<div class="why"><b>Why <code>FIREWALL_OUTBOUND_SUBNETS</code> is also set:</b> gluetun's kill switch is strict enough by default to also block replies back to devices on your own home network, which would mean qBittorrent's web page never loads for you either. That one line tells gluetun "traffic to my own home network is fine, everything else outbound must go through the tunnel or nowhere," so you can still reach qBittorrent's interface from your own devices while every other connection stays VPN-only.</div>
+
+<h4>Step C, prove it's actually working</h4>
+<ol class="steps">
+  <li>Check gluetun's own connection: <code>docker exec gluetun wget -qO- ifconfig.me</code>.
+    <div class="see">You'll see: an IP address belonging to AirVPN, not your home address. That's the tunnel working.</div>
+  </li>
+  <li>Check qBittorrent sees the exact same thing, proving it's genuinely sharing gluetun's connection rather than having one of its own: <code>docker exec qbittorrent wget -qO- ifconfig.me</code>.
+    <div class="see">You'll see: the identical VPN address as the previous step.</div>
+  </li>
+  <li>Now deliberately break it to test the kill switch: edit the <code>WIREGUARD_PRIVATE_KEY</code> line in the compose file to something wrong, run <code>docker compose up -d</code> again, then try the same <code>wget</code> command against qBittorrent once more.
+    <div class="see">You'll see: it should hang and fail completely, qBittorrent's web page becoming unreachable too, not quietly succeed with your home IP instead. That failure is the proof the kill switch is doing its job. Put the correct key back and run <code>docker compose up -d</code> once more to restore it.</div>
+  </li>
+</ol>
+
+<div class="box undo"><span class="lbl">If you need to undo this entirely</span>
+<code>docker compose down</code>, run from <code>/opt/arrstack</code>, stops and removes all five containers in one go, leaving the config folders and your media untouched, so running <code>docker compose up -d</code> again brings everything straight back the way it was.</div>
+
+<div class="recap"><span class="lbl">Recap</span>
+<ul><li><b>Docker</b> runs several small, lightweight app packages inside one LXC container, described together in one <b>docker-compose.yml</b> recipe file, rather than each app getting its own full Proxmox container.</li>
+<li><b>Sonarr</b>/<b>Radarr</b> organise, <b>Prowlarr</b> manages the list of indexers, <b>qBittorrent</b> is the one that actually fetches, each with one clear job.</li>
+<li><code>network_mode: "service:gluetun"</code> gives qBittorrent no network connection of its own at all, borrowing gluetun's entirely, so if the VPN tunnel drops there is nothing to fall back to. That's the kill switch, enforced by how the containers are wired together rather than by manual firewall rules.</li></ul></div>
+
+<div class="quiz"><span class="lbl">Check yourself</span>
+<p class="q">Q1. What does Prowlarr actually do, and why is it a separate app from Sonarr and Radarr rather than a setting inside each?</p>
+<p class="a">Prowlarr manages the list of indexers (search sources) in one central place. Keeping it separate means that list only ever needs configuring once, rather than being duplicated inside both Sonarr and Radarr.</p>
+<p class="q">Q2. Why does giving qBittorrent gluetun's network namespace, instead of its own, work as a kill switch?</p>
+<p class="a">A program with no network connection of its own has nothing to fall back to. Since qBittorrent borrows gluetun's connection entirely rather than having a separate one alongside it, if gluetun's VPN tunnel drops, qBittorrent simply has no path to the internet at all, rather than quietly reverting to a normal, visible one.</p></div>
+
+<h3>Wiring the apps together</h3>
+<p>Open Sonarr's own web address, go to <b>Settings → Media Management → Root Folders</b>, and add both <code>/media/anime</code> and <code>/media/tv</code> as two separate root folders, rather than just the one. Then, whenever you add a new show, Sonarr lets you choose which of the two root folders it goes into right there on the add screen, and also lets you set its <b>Series Type</b> to <code>Anime</code> or <code>Standard</code> for that title, which is what actually fixes episode numbering, since anime is frequently numbered differently to Western TV, often one continuous episode count running across the whole show rather than resetting each season, called <b>absolute numbering</b>. Open Radarr's address and point its single root folder at <code>/media/movies</code>, since films don't have this same numbering quirk.</p>
 
 <div class="box why"><span class="lbl">Matching this in Jellyfin</span>
 Worth setting up three separate libraries in Jellyfin too, rather than one that covers everything, Anime, TV Shows, and Movies, each pointed at its matching folder (<code>/media/anime</code>, <code>/media/tv</code>, <code>/media/movies</code>) and each set to the correct content type when you create it. This is what gives anime its own clean row on the home screen instead of being buried alphabetically among everything else, and it also helps Jellyfin fetch the right kind of metadata (episode thumbnails, correct show artwork) for each.</div>
 
 <p>One nice connecting step: in Jellyfin's Dashboard, under <b>API Keys</b>, generate a new key. Then in both Sonarr's and Radarr's own Settings, under <b>Connect</b>, add a new connection of type Jellyfin/Emby using your server's address and that key. This means Jellyfin refreshes its library the moment either one adds a file, rather than waiting for its next scheduled scan.</p>
 
+<p>Now connect qBittorrent as the download client both organisers hand fetch requests to. In both Sonarr's and Radarr's Settings, under <b>Download Clients</b>, add qBittorrent, using <code>gluetun</code>'s own address on the Docker host as the Host (since qBittorrent shares gluetun's networking, other containers reach it by asking for gluetun, not qbittorrent, by name) and <code>8080</code> as the port. Test the connection and save.</p>
+
+<p>Finally, open Prowlarr's own address and, under <b>Settings → Apps</b>, add both Sonarr and Radarr, using each one's own address and its API key (found in that app's own Settings → General). This is what lets Prowlarr push its list of indexers down to both organisers automatically, rather than you configuring the same list twice.</p>
+
 <div class="box safe"><span class="lbl">Where this guide deliberately stops</span>
-The very next screens in both apps, <b>Settings → Indexers</b> and <b>Settings → Download Clients</b>, are where you'd decide where content is actually searched for and fetched from. That decision, and everything about sourcing content responsibly and legally, is left entirely to you to research and set up in your own way. Everything covered above stands on its own regardless of what you choose there, so there's nothing to undo either way.</div>
+Every piece of plumbing above, the apps, how they're wired to each other, the VPN and its kill switch, stands on its own regardless of what you do next. The one thing left entirely to you is the actual list inside Prowlarr's <b>Settings → Indexers</b>, which specific indexers to add. That decision, and everything about sourcing content responsibly and legally, is left entirely to you to research and set up in your own way, so there's nothing above to undo whatever you choose there.</div>
 
 <div class="quiz"><span class="lbl">Check yourself</span>
-<p class="q">Q1. What can Sonarr and Radarr do straight out of the box, and what can't they do until something else is added?</p>
-<p class="a">Out of the box they can organise, rename and file content that already exists in a watched folder, and tell Jellyfin to refresh. They cannot find or fetch new content until an indexer and a download client are configured, deliberately left out of this guide for you to research yourself.</p>
-<p class="q">Q2. Why does anime get its own folder and its own Series Type rather than sitting with regular TV?</p>
+<p class="q">Q1. Why does Sonarr's Download Client setting point at gluetun's address rather than qBittorrent's own container name?</p>
+<p class="a">qBittorrent has no network identity of its own, it borrows gluetun's entirely through <code>network_mode: "service:gluetun"</code>. Any other container that wants to reach qBittorrent's web interface has to ask for gluetun by name instead.</p>
+<p class="q">Q2. Why does anime get its own root folder and its own Series Type rather than sitting with regular TV?</p>
 <p class="a">Anime often uses continuous "absolute" episode numbering across a whole show rather than resetting per season. Its own folder plus setting the Series Type to Anime is what makes Sonarr number and file it correctly, and it keeps Jellyfin's browsing tidy.</p></div>
 
-<h3>Routing downloads through a VPN, properly, with a kill switch</h3>
-<p>Whatever download client ends up running on your server, if it ever talks to other people's devices directly rather than one central server, meaning a peer-to-peer connection, every one of those other devices can see the IP address it's connecting from. Many people running a setup like this route that specific container's traffic through a VPN for exactly that reason, and if you already have an account with a VPN provider that supports the WireGuard protocol (AirVPN is one of many that do), here's how to set it up properly, meaning with a genuine <b>kill switch</b>: if the VPN tunnel ever drops, the container loses its connection to the internet entirely, rather than quietly falling back to its normal, visible connection without you noticing.</p>
-
-<div class="box learn"><span class="lbl">Understand this: why a kill switch is the whole point</span>
-A VPN on its own just adds a private tunnel alongside the normal connection, it doesn't remove the normal one. If the tunnel drops for a few seconds, an ordinary setup happily carries on using the regular connection instead, invisibly, which defeats the reason you set the VPN up in the first place. A kill switch, in plain terms, means deliberately locking the normal front door of that one container so it physically cannot be used at all, leaving the tunnel as the only way in or out. If the tunnel goes down, that container simply has no internet, full stop, rather than an unnoticed leak.</div>
-
-<h4>Step A, get your configuration file</h4>
-<p>Log into your VPN provider's own website (for AirVPN, this is their "Config Generator" in the client area), generate a <b>WireGuard</b> configuration for a server of your choosing, and download the resulting <code>.conf</code> file. Note the <code>Endpoint</code> line inside it, an address and port number, you'll need that exact value again in Step C.</p>
-
-<h4>Step B, install and start the tunnel</h4>
-<p>On whichever container will run your download client, install WireGuard's tools:</p>
-<span class="cmd">apt update
-apt install wireguard -y</span>
-<p>Copy your downloaded config file onto that container as <code>/etc/wireguard/airvpn.conf</code> (WinSCP works fine for this, same as copying any other file across). Then bring the tunnel up:</p>
-<span class="cmd">wg-quick up airvpn</span>
-<p>And set it to start automatically on every future boot, rather than needing to be started by hand each time:</p>
-<span class="cmd">systemctl enable wg-quick@airvpn</span>
-<div class="see">You'll see: running <code>wg show</code> lists the tunnel as active, with a "latest handshake" timestamp confirming it's actually talking to the VPN server, not just sitting there unconnected.</div>
-
-<h4>Step C, the kill switch itself</h4>
-<div class="box learn"><span class="lbl">Understand this: what these rules actually say</span>
-<code>iptables</code> is Linux's own built-in gatekeeper for network traffic, sitting in front of every connection in or out. The rules below say, in order: allow the container to talk to itself (needed for it to function at all), allow replies to conversations it already started, allow it to freely use the VPN tunnel interface (<code>wg0</code>), allow the one specific connection needed to actually reach the VPN server and keep the tunnel alive, then block absolutely everything else outbound by default. That last part is the actual kill switch, everything not explicitly allowed above it simply doesn't go anywhere.</div>
-<p>Install a tool to make these rules survive a reboot, then apply the ruleset (replace <code>VPN_SERVER_IP</code> and <code>VPN_SERVER_PORT</code> with the exact values from your config file's <code>Endpoint</code> line):</p>
-<span class="cmd">apt install iptables-persistent -y
-
-iptables -F
-iptables -P OUTPUT DROP
-iptables -P INPUT DROP
-iptables -P FORWARD DROP
-iptables -A OUTPUT -o lo -j ACCEPT
-iptables -A INPUT -i lo -j ACCEPT
-iptables -A OUTPUT -m state --state ESTABLISHED,RELATED -j ACCEPT
-iptables -A INPUT -m state --state ESTABLISHED,RELATED -j ACCEPT
-iptables -A OUTPUT -o wg0 -j ACCEPT
-iptables -A OUTPUT -p udp -d VPN_SERVER_IP --dport VPN_SERVER_PORT -j ACCEPT
-
-netfilter-persistent save</span>
-<div class="why"><b>Why that one extra UDP line matters:</b> the tunnel itself is built on a plain outbound connection to the VPN server before anything is encrypted inside it. Without explicitly allowing that one specific address and port, the tunnel could never establish itself in the first place, since the strict block-everything-else rule above it would catch that too.</div>
-
-<h4>Step D, prove it's actually working</h4>
-<ol class="steps">
-  <li>With the tunnel up, run <code>curl ifconfig.me</code> inside the container.
-    <div class="see">You'll see: an IP address belonging to your VPN provider, not your home address. That's the tunnel working.</div>
-  </li>
-  <li>Now deliberately break it to test the kill switch: <code>wg-quick down airvpn</code>, then try <code>curl ifconfig.me</code> again.
-    <div class="see">You'll see: it should hang and fail completely, not quietly succeed with your home IP instead. That failure is the proof the kill switch is doing its job.</div>
-  </li>
-  <li>Bring the tunnel back up once you've confirmed this (<code>wg-quick up airvpn</code>), and you're done, this container now only ever reaches the internet through the VPN.</li>
-</ol>
-
-<div class="box undo"><span class="lbl">If you need to undo this entirely</span>
-To remove the kill switch and go back to normal: <code>iptables -F</code> clears every rule you just added, then <code>iptables -P OUTPUT ACCEPT</code> and <code>iptables -P INPUT ACCEPT</code> restore the default "allow everything" behaviour, then <code>netfilter-persistent save</code> makes that the new permanent state. <code>wg-quick down airvpn</code> separately stops the tunnel itself if you want it off too.</div>
-
-<div class="recap"><span class="lbl">Recap</span>
-<ul><li>A VPN alone adds a private tunnel but leaves the normal connection as a fallback; a <b>kill switch</b> removes that fallback entirely.</li>
-<li><code>iptables</code> is Linux's built-in traffic gatekeeper; blocking everything by default except the tunnel and the one connection needed to reach the VPN server is what makes the switch real.</li>
-<li>Always prove it by deliberately dropping the tunnel and confirming the container goes fully offline rather than silently reverting to its normal connection.</li></ul></div>
-
-<div class="quiz"><span class="lbl">Check yourself</span>
-<p class="q">Q1. Why isn't just having a VPN connection enough on its own?</p>
-<p class="a">A VPN adds a tunnel alongside the normal connection without removing it, so if the tunnel drops, traffic can quietly fall back to the normal, visible connection. A kill switch blocks that fallback so nothing gets out if the tunnel isn't up.</p>
-<p class="q">Q2. Why does the ruleset need one specific allowed exception straight to the VPN server's own address and port, on top of the tunnel interface itself?</p>
-<p class="a">The tunnel is built on top of an ordinary outbound connection to the VPN server first. Without allowing that one specific connection, the strict "block everything else" rule would prevent the tunnel from ever being established at all.</p></div>
+<div class="box map"><span class="lbl">You'll meet this again</span>
+<b>Docker</b> and <b>Docker Compose</b> are two of the most widely used pieces of real infrastructure anywhere, the same underlying idea behind <b>Azure Container Instances</b> and <b>Kubernetes</b> at cloud scale, describing a whole stack of small services in one file rather than clicking through installs by hand is exactly the mindset behind <b>infrastructure as code</b>. A <b>network namespace</b> is genuine Linux and cloud networking vocabulary you'll meet again in <b>Network+</b> and any container-networking topic in <b>AZ-104</b>.</div>
 
 <!-- ===================== DASHBOARD ===================== -->
 <h2 id="dashboard"><span class="n">11.</span>One front door for the family: a dashboard, a memorable address, and no ports</h2>
@@ -950,10 +1024,14 @@ A <b>snapshot</b> saves a container's state <em>on the same disk</em>: brilliant
   <dt>Local DNS record</dt><dd>A name-to-address entry you add to Pi-hole yourself, only known inside your own house, letting a memorable name like nadrihome.com replace an IP address. Ending it in a real TLD like .com keeps browsers from treating it as a search. Can only ever hold a bare address, never a port or protocol.</dd>
   <dt>Reverse proxy</dt><dd>A container (here, Nginx Proxy Manager) that sits on the normal web port and forwards each incoming name on to the right internal container and port, which is what lets a name work with no port typed after it.</dd>
   <dt>HTTP status code / 301 redirect</dt><dd>A three-digit number every web response carries, telling the browser what happened. 301 means "moved permanently", telling the browser to automatically continue on to a new address, used here to send a bare address on to a service's real path like /admin.</dd>
-  <dt>Sonarr / Radarr</dt><dd>Separate containers that organise, rename and file TV shows and films into your library folder automatically, and tell Jellyfin to refresh. They don't fetch anything on their own until an indexer and download client are added.</dd>
-  <dt>Kill switch</dt><dd>A firewall setup that blocks a container's normal internet connection entirely, leaving a VPN tunnel as the only way in or out, so nothing leaks out if the tunnel drops.</dd>
-  <dt>iptables</dt><dd>Linux's built-in tool for filtering network traffic by rule, used here to build the kill switch.</dd>
-  <dt>Indexer / download client</dt><dd>The two pieces that together decide where content is searched for and how it's actually fetched. Deliberately left out of this guide for you to research and configure yourself.</dd>
+  <dt>Sonarr / Radarr</dt><dd>Apps that organise, rename and file TV shows and films into your library folder automatically, and tell Jellyfin to refresh. Neither one searches for or fetches content on its own, that's Prowlarr and qBittorrent's job.</dd>
+  <dt>Prowlarr</dt><dd>An indexer manager: the one place the list of indexers (search sources) is configured, then pushed automatically to both Sonarr and Radarr rather than being set up twice.</dd>
+  <dt>qBittorrent</dt><dd>The download client: the app that actually connects out to fetch content once Sonarr, Radarr and Prowlarr have found and requested it. Routed through the VPN since it talks directly to other people's devices.</dd>
+  <dt>Docker / Docker Compose</dt><dd>Docker runs several small, lightweight app packages (container images) inside one Linux container, sharing its resources rather than each getting a full separate one. Docker Compose is a single recipe file (docker-compose.yml) listing every app to run, what to give it access to, and how they connect, applied in one command.</dd>
+  <dt>Network namespace</dt><dd>A program's own private slice of networking. Sharing one, as qBittorrent does with gluetun, means it borrows another container's connection entirely rather than having its own, so it has nothing else to fall back to.</dd>
+  <dt>gluetun</dt><dd>A small container whose only job is holding a VPN tunnel open and enforcing a kill switch around it, used here to route qBittorrent through AirVPN.</dd>
+  <dt>Kill switch</dt><dd>A setup that blocks a container's normal internet connection entirely, leaving a VPN tunnel as the only way in or out, so nothing leaks out if the tunnel drops.</dd>
+  <dt>Indexer</dt><dd>A search source added inside Prowlarr, deciding where content is actually searched for. Deliberately left out of this guide for you to research and configure yourself.</dd>
   <dt>Immich / Nextcloud / Vaultwarden / Home Assistant / Uptime Kuma / Proxmox Backup Server</dt><dd>Future containers on the roadmap: private photo backup, a shared drive, a shared password manager, smart home control, a dashboard that watches your other containers, and a proper off-site backup system.</dd>
   <dt>Hypervisor</dt><dd>Software that runs multiple virtual computers on one physical machine. Proxmox is a Type 1 (bare-metal) one.</dd>
   <dt>Virtual machine (VM)</dt><dd>A software "computer" that runs its own full operating system on a hypervisor.</dd>
