@@ -657,6 +657,12 @@ No need to redo the <code>tailscale up</code> command afterward, this fixes a se
   <li>Install the <b>Tailscale</b> app on your phone, sign into the same account, toggle it on. Turn wifi off (mobile data) and open Jellyfin at its home <code>:8096</code> address.
     <div class="see">You'll see: it plays over mobile data, through the private tunnel, nothing exposed to the public. Lose a phone? Remove it in the admin page and it instantly loses all access.</div>
   </li>
+  <li>Try one of your memorable addresses instead, like <code>nadrijellyfin.com</code>, while still away from home on mobile data. This one will not load yet, and that is expected.
+    <div class="why"><b>Why the plain IP address works but the memorable name does not:</b> a name like <code>nadrijellyfin.com</code> only means anything because Pi-hole is the one answering for it. Your phone only learns to ask Pi-hole for DNS answers because your home router's DHCP hands that instruction out automatically, and that only happens to devices actually connected to your home network. A phone out on mobile data, even through the Tailscale tunnel, never received that instruction, so it falls back to the regular public internet's DNS, which has never heard of <code>nadrijellyfin.com</code> and fails.</div>
+    <div class="safe"><b>The fix, done once in the Tailscale admin console:</b> on a computer, go to <code>login.tailscale.com</code> and click <b>DNS</b> in the sidebar. Under Nameservers, add a Global Nameserver and enter Pi-hole's address (<code>192.168.1.97</code>). Switch on <b>Override DNS servers</b> underneath it, then save.
+    This is Tailscale's own way of doing the same job your router's DHCP normally does, but for devices that are only ever reachable through the tunnel: it tells every device in your tailnet "for DNS questions, ask this address," the same instruction your router already gives phones at home.
+    Afterward, on the phone, toggle Tailscale off then on again so it picks up the new setting, and try <code>nadrijellyfin.com</code> again on mobile data. It should now resolve exactly like it does at home.</div>
+  </li>
 </ol>
 
 <div class="box map"><span class="lbl">You'll meet this again</span>
@@ -968,6 +974,7 @@ A <b>snapshot</b> saves a container's state <em>on the same disk</em>: brilliant
   <dt>CIDR (e.g. /24)</dt><dd>Notation for a block of IP addresses; /24 = 256 addresses. Used to define cloud networks too.</dd>
   <dt>Zero-trust</dt><dd>Security approach: trust no network by default, verify every device. Tailscale is an example.</dd>
   <dt>IP forwarding</dt><dd>A Linux setting, separate from Tailscale itself, controlling whether a machine is allowed to pass traffic through to other devices rather than only handling traffic meant for itself. Off by default; needs enabling for subnet routing to actually work.</dd>
+  <dt>Global Nameserver (Tailscale DNS)</dt><dd>A DNS address that Tailscale hands out to every device in the tailnet, the same role a home router's DHCP normally plays for devices connected to it locally. Needed so devices that are only ever reachable through the tunnel (like a phone away from home) still know to ask Pi-hole for custom domain names instead of falling back to the public internet's DNS.</dd>
   <dt>Client / server</dt><dd>The server provides a service; the client consumes it. The pattern behind most software.</dd>
   <dt>Transcoding / Quick Sync</dt><dd>Reshaping video on the fly; Quick Sync is Intel hardware that does it efficiently.</dd>
   <dt>Snapshot vs backup</dt><dd>A snapshot is an on-disk undo point; a backup is a separate copy elsewhere (see 3-2-1).</dd>
