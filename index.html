@@ -747,7 +747,9 @@ nano docker-compose.yml</span>
       - VPN_SERVICE_PROVIDER=airvpn
       - VPN_TYPE=wireguard
       - WIREGUARD_PRIVATE_KEY=paste_your_private_key_here
+      - WIREGUARD_PRESHARED_KEY=paste_your_preshared_key_here
       - WIREGUARD_ADDRESSES=paste_your_address_here
+      - SERVER_COUNTRIES=Netherlands
       - FIREWALL_OUTBOUND_SUBNETS=192.168.1.0/24
     restart: unless-stopped
 
@@ -812,16 +814,21 @@ nano docker-compose.yml</span>
 <p>Bring the whole stack up with one command, run from <code>/opt/arrstack</code>:</p>
 <span class="cmd">docker compose up -d</span>
 <div class="see">You'll see: Docker pulling each image the first time (may take a few minutes), then <code>docker ps</code> listing all five containers (gluetun, qbittorrent, prowlarr, sonarr, radarr) as running.</div>
+<div class="box safe"><span class="lbl">Finding qBittorrent's first password</span>
+Recent versions of qBittorrent no longer ship with a fixed default password. Instead, the first time it starts it generates a random temporary one and prints it into its own logs, the same idea as the Portainer setup token earlier. When you go to log into qBittorrent's web interface for the first time, the username is <code>admin</code>, and you get the temporary password by reading its logs, run from inside the Docker container:
+<span class="cmd">docker logs qbittorrent | grep -i password</span>
+Log in with that, then set a proper password of your own straight away under qBittorrent's <b>Tools → Options → Web UI</b>, since the temporary one changes every time the container restarts.</div>
 
 <h3>Wiring the VPN kill switch the Docker way: gluetun</h3>
 <div class="box learn"><span class="lbl">Understand this: what gluetun actually is, and why qBittorrent has no compose entry of its own network-wise</span>
 <b>gluetun</b> is a small container whose only job is holding a VPN tunnel open and enforcing a kill switch around it, the exact same principle covered for other setups, if the tunnel drops, nothing gets out, rather than quietly falling back to a normal, visible connection. The line <code>network_mode: "service:gluetun"</code> on qBittorrent is what actually enforces that, in plain terms it means qBittorrent is given no network connection of its own at all, it borrows gluetun's entirely. The real jargon for "a program's own private slice of networking" is a <b>network namespace</b>, and sharing one this way means qBittorrent physically has no other path to the internet to fall back to, even by accident. If gluetun's tunnel goes down, qBittorrent doesn't get a normal connection instead, it gets nothing, which is what a kill switch means.</div>
 
 <h4>Step A, get your AirVPN WireGuard details</h4>
-<p>Log into AirVPN's own website, open their <b>"Config Generator"</b> in the client area, choose <b>WireGuard</b> as the protocol and generate a configuration for a server of your choosing, then download the resulting <code>.conf</code> file. Open it in a text editor and note two lines from inside it: the <code>PrivateKey</code> line and the <code>Address</code> line, both under <code>[Interface]</code>.</p>
+<p>Log into AirVPN's own website, open their <b>"Config Generator"</b> in the client area, choose <b>WireGuard</b> as the protocol and generate a configuration for a server of your choosing, then download the resulting <code>.conf</code> file. Open it in a text editor and note three lines from inside it, all under <code>[Interface]</code>: the <code>PrivateKey</code> line, the <code>PresharedKey</code> line, and the <code>Address</code> line.</p>
+<div class="safe"><b>Don't skip the preshared key:</b> AirVPN's WireGuard uses a second key, the <b>preshared key</b>, on top of the private one, an extra shared secret layered in for additional protection. It's easy to miss because some other VPN providers don't use one at all, but with AirVPN the tunnel simply will not connect without it, so make sure you grab that <code>PresharedKey</code> line too.</div>
 
 <h4>Step B, fill in the compose file</h4>
-<p>Back in <code>docker-compose.yml</code>, replace <code>paste_your_private_key_here</code> with that <code>PrivateKey</code> value, and <code>paste_your_address_here</code> with that <code>Address</code> value, then apply the change:</p>
+<p>Back in <code>docker-compose.yml</code>, replace <code>paste_your_private_key_here</code> with the <code>PrivateKey</code> value, <code>paste_your_preshared_key_here</code> with the <code>PresharedKey</code> value, and <code>paste_your_address_here</code> with the <code>Address</code> value exactly as it appears (including the <code>/32</code> on the end if it has one). The <code>SERVER_COUNTRIES=Netherlands</code> line just tells gluetun which country's AirVPN servers to use; swap in any country AirVPN offers, or delete that line entirely to let it choose from all of them. Then apply the change:</p>
 <span class="cmd">docker compose up -d</span>
 <div class="why"><b>Why <code>FIREWALL_OUTBOUND_SUBNETS</code> is also set:</b> gluetun's kill switch is strict enough by default to also block replies back to devices on your own home network, which would mean qBittorrent's web page never loads for you either. That one line tells gluetun "traffic to my own home network is fine, everything else outbound must go through the tunnel or nowhere," so you can still reach qBittorrent's interface from your own devices while every other connection stays VPN-only.</div>
 
@@ -860,9 +867,10 @@ Worth setting up three separate libraries in Jellyfin too, rather than one that 
 
 <p>One nice connecting step: in Jellyfin's Dashboard, under <b>API Keys</b>, generate a new key. Then in both Sonarr's and Radarr's own Settings, under <b>Connect</b>, add a new connection of type Jellyfin/Emby using your server's address and that key. This means Jellyfin refreshes its library the moment either one adds a file, rather than waiting for its next scheduled scan.</p>
 
-<p>Now connect qBittorrent as the download client both organisers hand fetch requests to. In both Sonarr's and Radarr's Settings, under <b>Download Clients</b>, add qBittorrent, using <code>gluetun</code>'s own address on the Docker host as the Host (since qBittorrent shares gluetun's networking, other containers reach it by asking for gluetun, not qbittorrent, by name) and <code>8080</code> as the port. Test the connection and save.</p>
+<p>Now connect qBittorrent as the download client both organisers hand fetch requests to. In both Sonarr's and Radarr's Settings, under <b>Download Clients</b>, add qBittorrent, and in the Host field type literally <code>gluetun</code> (not qbittorrent) with <code>8080</code> as the port. Test the connection and save.</p>
+<div class="why"><b>Why the host is <code>gluetun</code> and not <code>qbittorrent</code>:</b> because everything in this stack was started from the same compose file, the apps can find each other by their names, no IP addresses needed between them. But qBittorrent has no network identity of its own, it borrows gluetun's entirely through <code>network_mode: "service:gluetun"</code>, so from every other container's point of view, qBittorrent lives at gluetun's name. Ask for gluetun on port 8080 and you reach qBittorrent's web interface sitting inside it.</div>
 
-<p>Finally, open Prowlarr's own address and, under <b>Settings → Apps</b>, add both Sonarr and Radarr, using each one's own address and its API key (found in that app's own Settings → General). This is what lets Prowlarr push its list of indexers down to both organisers automatically, rather than you configuring the same list twice.</p>
+<p>Finally, open Prowlarr's own address and, under <b>Settings → Apps</b>, add both Sonarr and Radarr. Here you can use their names directly too, <code>sonarr</code> on port <code>8989</code> and <code>radarr</code> on port <code>7878</code>, along with each one's API key (found in that app's own Settings → General). This is what lets Prowlarr push its list of indexers down to both organisers automatically, rather than you configuring the same list twice.</p>
 
 <div class="box safe"><span class="lbl">Where this guide deliberately stops</span>
 Every piece of plumbing above, the apps, how they're wired to each other, the VPN and its kill switch, stands on its own regardless of what you do next. The one thing left entirely to you is the actual list inside Prowlarr's <b>Settings → Indexers</b>, which specific indexers to add. That decision, and everything about sourcing content responsibly and legally, is left entirely to you to research and set up in your own way, so there's nothing above to undo whatever you choose there.</div>
