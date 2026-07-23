@@ -644,10 +644,15 @@ Online you'll be told to switch on <b>port forwarding</b> to reach your server. 
 tailscale up</span>
     <div class="why"><b>Reading the commands:</b> same pattern as Pi-hole, <code>curl</code> fetches the official installer and pipes it into a shell to run. <code>tailscale up</code> links this machine to your account. It prints a link; open it on your laptop to approve. This is you giving the front desk its badge.</div>
   </li>
-  <li>Now make the front desk a doorway to the whole home (find your range from the host's IP: <code>192.168.1.50</code> gives <code>192.168.1.0/24</code>):
+  <li>Now make the front desk a doorway to the whole home (find your range from the host's IP: <code>192.168.1.50</code> gives <code>192.168.1.0/24</code>, the first three numbers of your own host's address followed by <code>.0/24</code>):
     <span class="cmd">tailscale up --advertise-routes=192.168.1.0/24 --accept-dns=false</span>
     then approve that route once in the admin page at <code>login.tailscale.com</code>.
     <div class="why"><b>This is the "pass me through to the flats" step from the diagram.</b> <code>--advertise-routes=192.168.1.0/24</code> hands the front desk the whole home "street" to forward you onto, and the approval click is just you confirming you're happy for it to. That's all the scary-looking line does.</div>
+    <div class="safe"><b>If you see warnings about "forwarding disabled":</b> Tailscale is telling you the machine's own underlying ability to pass traffic through to other devices is switched off by default, a separate, lower-level Linux setting from anything Tailscale itself controls, and a sensible default since most computers only ever handle traffic meant for themselves. Turn it on with:
+<span class="cmd">echo 'net.ipv4.ip_forward = 1' | tee -a /etc/sysctl.d/99-tailscale.conf
+echo 'net.ipv6.conf.all.forwarding = 1' | tee -a /etc/sysctl.d/99-tailscale.conf
+sysctl -p /etc/sysctl.d/99-tailscale.conf</span>
+No need to redo the <code>tailscale up</code> command afterward, this fixes a separate permission underneath it. A second warning about <b>UDP GRO</b> on your bridge is just a performance tweak, not a correctness problem, safe to leave alone.</div>
   </li>
   <li>Install the <b>Tailscale</b> app on your phone, sign into the same account, toggle it on. Turn wifi off (mobile data) and open Jellyfin at its home <code>:8096</code> address.
     <div class="see">You'll see: it plays over mobile data, through the private tunnel, nothing exposed to the public. Lose a phone? Remove it in the admin page and it instantly loses all access.</div>
@@ -962,6 +967,7 @@ A <b>snapshot</b> saves a container's state <em>on the same disk</em>: brilliant
   <dt>VPN / WireGuard / Tailscale</dt><dd>An encrypted private network over the internet for your own devices. Tailscale uses the WireGuard protocol.</dd>
   <dt>CIDR (e.g. /24)</dt><dd>Notation for a block of IP addresses; /24 = 256 addresses. Used to define cloud networks too.</dd>
   <dt>Zero-trust</dt><dd>Security approach: trust no network by default, verify every device. Tailscale is an example.</dd>
+  <dt>IP forwarding</dt><dd>A Linux setting, separate from Tailscale itself, controlling whether a machine is allowed to pass traffic through to other devices rather than only handling traffic meant for itself. Off by default; needs enabling for subnet routing to actually work.</dd>
   <dt>Client / server</dt><dd>The server provides a service; the client consumes it. The pattern behind most software.</dd>
   <dt>Transcoding / Quick Sync</dt><dd>Reshaping video on the fly; Quick Sync is Intel hardware that does it efficiently.</dd>
   <dt>Snapshot vs backup</dt><dd>A snapshot is an on-disk undo point; a backup is a separate copy elsewhere (see 3-2-1).</dd>
