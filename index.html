@@ -117,7 +117,7 @@
   <ol start="9">
     <li><a href="#remote">Remote access: the whole of home networking, and security</a></li>
     <li><a href="#automate">Automating your media library: Sonarr, Radarr and a VPN</a></li>
-    <li><a href="#dashboard">One front door for the family: a dashboard and a memorable address</a></li>
+    <li><a href="#dashboard">One front door for the family: a dashboard, a memorable address, and no ports</a></li>
   </ol>
   <div class="phase">Part 4 · Keep it running, and where to take it next</div>
   <ol start="12">
@@ -777,7 +777,7 @@ To remove the kill switch and go back to normal: <code>iptables -F</code> clears
 <p class="a">The tunnel is built on top of an ordinary outbound connection to the VPN server first. Without allowing that one specific connection, the strict "block everything else" rule would prevent the tunnel from ever being established at all.</p></div>
 
 <!-- ===================== DASHBOARD ===================== -->
-<h2 id="dashboard"><span class="n">11.</span>One front door for the family: a dashboard and a memorable address</h2>
+<h2 id="dashboard"><span class="n">11.</span>One front door for the family: a dashboard, a memorable address, and no ports</h2>
 <p>Right now, reaching anything means knowing its exact IP address and port, which is fine for you but not realistic for the rest of the household. This section fixes that with two small pieces working together: a dashboard that turns every service into a single clickable tile, and one memorable address for the whole family to type instead of any of them.</p>
 
 <div class="box learn"><span class="lbl">Understand this: the two separate jobs being solved here</span>
@@ -791,29 +791,53 @@ A <b>dashboard</b> solves "where do I click", one page with an icon per service,
 <h3>Step B, one name for the whole house</h3>
 <div class="box learn"><span class="lbl">Understand this: why Pi-hole is the right tool for this too</span>
 Pi-hole is already the phone book the whole house uses to look up names. Adding your own entry to that phone book is exactly the same idea as it looking up <code>bbc.co.uk</code>, except this entry only exists inside your own house, nobody on the outside internet has ever heard of it, and it can point at whatever you like.</div>
+<p>Worth picking a consistent pattern for these names rather than a different style each time, something like <code>&lt;service&gt;.nadri</code>, so <code>home.nadri</code> for the dashboard, <code>jellyfin.nadri</code>, <code>pihole.nadri</code>, and so on as you add more.</p>
 <ol class="steps">
   <li>In Pi-hole's admin page, go to <b>Local DNS</b>, then <b>DNS Records</b>.</li>
-  <li>Add a new record: in the domain field enter <code>home.lan</code>, and in the IP field enter Homarr's address. Click <b>Add</b>.
-    <div class="why"><b>Why the <code>.lan</code> ending matters:</b> browsers tend to treat a single bare word typed into the address bar as a search rather than a web address. Giving it a dot, like a normal-looking web address, makes browsers treat it properly as somewhere to go rather than something to search for.</div>
+  <li>Add a new record: in the domain field enter <code>home.nadri</code>, and in the IP field enter <b>just the bare IP address</b>, Homarr's address on its own, nothing else typed alongside it. Click <b>Add</b>.
+    <div class="why"><b>Why the dotted ending matters:</b> browsers tend to treat a single bare word typed into the address bar as a search rather than a web address. Giving it a dot, like a normal-looking web address, makes browsers treat it properly as somewhere to go rather than something to search for.</div>
+    <div class="safe"><b>Only the address goes in that box:</b> no <code>http://</code>, no port number, no trailing slash. A DNS record can only ever answer "what address does this name mean", it has no way to carry a port or protocol alongside it, so anything extra typed in there gets rejected.</div>
   </li>
-  <li>On any device already using Pi-hole for DNS, either your whole house after the earlier rollout, open a browser and go to <code>http://home.lan</code>.
-    <div class="see">You'll see: Homarr's dashboard loads, the same as typing its IP directly, except now everyone in the house just needs to remember one easy word.</div>
+  <li>On any device already using Pi-hole for DNS, open a browser and go to <code>http://home.nadri:7575</code>.
+    <div class="see">You'll see: Homarr's dashboard loads. Notice the port number still had to be typed, that's the one piece a plain DNS name can never remove on its own, which is exactly what Step C below finishes off.</div>
+  </li>
+</ol>
+
+<h3>Step C, dropping the port number too: a reverse proxy</h3>
+<div class="box learn"><span class="lbl">Understand this: why the port can't be avoided without one more piece</span>
+When a browser gets a name with no port typed after it, it silently assumes port 80 (or 443 for a locked <code>https://</code> address). Homarr doesn't live on port 80, it lives on 7575, so typing the name alone lands nowhere until something is actually sitting on port 80 ready to answer. A <b>reverse proxy</b> is that something: a single doorway on the normal port that looks at which name was asked for, and quietly forwards the visitor on to whichever real container and port actually handles it, Homarr, Jellyfin, Pi-hole, whatever it's told to. Every name can then work with nothing typed after it at all.</div>
+
+<p>Create it the same way as everything else, run from the Proxmox host:</p>
+<span class="cmd">bash -c "$(curl -fsSL https://raw.githubusercontent.com/community-scripts/ProxmoxVE/main/ct/nginxproxymanager.sh)"</span>
+<p>Defaults: 2 cores, 2GB memory, 8GB disk. Its own admin page runs on port 81, reached at <code>&lt;its-ip&gt;:81</code>, that one port is the only exception you'll ever need to type, since it's how you manage the proxy itself, not one of the family's everyday addresses. On first visit it walks you straight into creating your own admin account, no default login to worry about.</p>
+
+<ol class="steps">
+  <li>Inside Nginx Proxy Manager, go to <b>Hosts</b>, then <b>Proxy Hosts</b>, then <b>Add Proxy Host</b>.</li>
+  <li>Under <b>Domain Names</b>, enter <code>home.nadri</code>. Under <b>Forward Hostname / IP</b>, enter Homarr's actual address. Under <b>Forward Port</b>, enter <code>7575</code>. Save.
+    <div class="why"><b>What you just told it:</b> "when someone asks for home.nadri, quietly walk them through to Homarr's real address on port 7575." The visitor never sees or types that port at all.</div>
+  </li>
+  <li>Back in Pi-hole's Local DNS Records, edit the <code>home.nadri</code> record you made in Step B so its IP now points at the <b>proxy's</b> address instead of Homarr's own address directly.
+    <div class="why"><b>Why this changes:</b> every name now needs to be pointed at the one doorway (the proxy), which then decides internally where each name actually goes. Pointing straight at Homarr again would skip the doorway and land you back needing the port.</div>
+  </li>
+  <li>Repeat both steps, a Pi-hole record plus a matching Proxy Host entry, for each additional service, <code>jellyfin.nadri</code> forwarding to Jellyfin's address on port 8096, <code>pihole.nadri</code> forwarding to Pi-hole's address on port 80, and so on, all sharing the one <code>.nadri</code> pattern.</li>
+  <li>Test it: <code>http://home.nadri</code>, with nothing after it at all.
+    <div class="see">You'll see: Homarr's dashboard, no port typed anywhere. That's the whole chain working end to end, a name resolves to the proxy, and the proxy quietly finishes the journey.</div>
   </li>
 </ol>
 
 <div class="box map"><span class="lbl">You'll meet this again</span>
-This is a small taste of what <b>internal DNS</b> and <b>service discovery</b> do inside real organisations at a much larger scale, giving humans and other systems memorable names instead of ever typing raw addresses. It's also the seed of what a <b>reverse proxy</b> does one step further, a separate, slightly more involved piece that would let you drop the port number too, so <code>jellyfin.lan</code> alone works with nothing after it. Worth knowing exists, not needed right now.</div>
+This is a small taste of what <b>internal DNS</b> and <b>service discovery</b> do inside real organisations at a much larger scale, and a <b>reverse proxy</b> is one of the single most common pieces of real infrastructure anywhere, the exact same job Azure's <b>Application Gateway</b> or a <b>load balancer</b> does in front of cloud services, just at home-lab scale.</div>
 
 <div class="recap"><span class="lbl">Recap</span>
 <ul><li>A <b>dashboard</b> (Homarr) turns every service into one clickable tile, hiding IPs and ports from whoever's using it.</li>
-<li>A <b>local DNS record</b> in Pi-hole gives the whole house one memorable name instead of an address, using a dotted name like <code>home.lan</code> so browsers treat it correctly.</li>
-<li>A <b>reverse proxy</b> is the next step up from this, dropping port numbers too, but isn't needed to get real day-to-day value here.</li></ul></div>
+<li>A <b>local DNS record</b> in Pi-hole gives the whole house one memorable name instead of an address, using a dotted name like <code>home.nadri</code> so browsers treat it correctly. A DNS record can only ever hold a bare address, never a port or protocol.</li>
+<li>A <b>reverse proxy</b> sits on the normal port and forwards each name on to its real container and port internally, which is what finally lets a name work with nothing typed after it.</li></ul></div>
 
 <div class="quiz"><span class="lbl">Check yourself</span>
-<p class="q">Q1. What two separate problems do the dashboard and the local DNS record each solve?</p>
-<p class="a">The dashboard solves "where do I click", giving one page with a tile per service so nobody needs to know an address. The local DNS record solves "what do I type", giving one memorable name instead of an IP address.</p>
-<p class="q">Q2. Why does <code>home.lan</code> work more reliably typed into a browser than just <code>home</code> on its own?</p>
-<p class="a">A single bare word tends to get treated as a search term by the browser rather than an address. A dotted name looks like a normal web address, so the browser sends it to Pi-hole to resolve instead of searching for it.</p></div>
+<p class="q">Q1. Why did <code>http://home.nadri</code> alone not reach Homarr until the reverse proxy was added, even though the DNS record already existed?</p>
+<p class="a">A browser with no port typed assumes port 80, but Homarr runs on port 7575. DNS can only supply an address, never a port, so without something answering on port 80 for that name, there was nowhere for the bare address to land.</p>
+<p class="q">Q2. Once the reverse proxy is in place, what does each Pi-hole DNS record need to point at, and why?</p>
+<p class="a">The proxy's own address, not each service's own address directly. The proxy is the one thing listening on the normal port and deciding where each name actually goes internally, so every name needs to be routed through it first.</p></div>
 
 <!-- ===================== OPS ===================== -->
 <div class="partbar">Part 4 · Keep it running, and where to take it next</div>
@@ -889,8 +913,8 @@ A <b>snapshot</b> saves a container's state <em>on the same disk</em>: brilliant
 <dl class="gloss">
   <dt>Fladder</dt><dd>An alternative app for watching your Jellyfin library, built by a different team. Talks to the same server, no changes needed on Jellyfin's side.</dd>
   <dt>Homarr</dt><dd>A dashboard container that shows every one of your services as a clickable tile, so nobody needs to know an IP address or port to reach anything.</dd>
-  <dt>Local DNS record</dt><dd>A name-to-address entry you add to Pi-hole yourself, only known inside your own house, letting a memorable name like home.lan replace an IP address.</dd>
-  <dt>Reverse proxy</dt><dd>A more advanced piece that drops port numbers too, so a name on its own is enough to reach a service. Not needed for a dashboard and local DNS names to work.</dd>
+  <dt>Local DNS record</dt><dd>A name-to-address entry you add to Pi-hole yourself, only known inside your own house, letting a memorable name like home.nadri replace an IP address. Can only ever hold a bare address, never a port or protocol.</dd>
+  <dt>Reverse proxy</dt><dd>A container (here, Nginx Proxy Manager) that sits on the normal web port and forwards each incoming name on to the right internal container and port, which is what lets a name work with no port typed after it.</dd>
   <dt>Sonarr / Radarr</dt><dd>Separate containers that organise, rename and file TV shows and films into your library folder automatically, and tell Jellyfin to refresh. They don't fetch anything on their own until an indexer and download client are added.</dd>
   <dt>Kill switch</dt><dd>A firewall setup that blocks a container's normal internet connection entirely, leaving a VPN tunnel as the only way in or out, so nothing leaks out if the tunnel drops.</dd>
   <dt>iptables</dt><dd>Linux's built-in tool for filtering network traffic by rule, used here to build the kill switch.</dd>
