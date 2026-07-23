@@ -831,10 +831,6 @@ nano docker-compose.yml</span>
 <p>Bring the whole stack up with one command, run from <code>/opt/arrstack</code>:</p>
 <span class="cmd">docker compose up -d</span>
 <div class="see">You'll see: Docker pulling each image the first time (may take a few minutes), then <code>docker ps</code> listing all five containers (gluetun, qbittorrent, prowlarr, sonarr, radarr) as running.</div>
-<div class="box safe"><span class="lbl">Finding qBittorrent's first password</span>
-Recent versions of qBittorrent no longer ship with a fixed default password. Instead, the first time it starts it generates a random temporary one and prints it into its own logs, the same idea as the Portainer setup token earlier. When you go to log into qBittorrent's web interface for the first time, the username is <code>admin</code>, and you get the temporary password by reading its logs, run from inside the Docker container:
-<span class="cmd">docker logs qbittorrent | grep -i password</span>
-Log in with that, then set a proper password of your own straight away under qBittorrent's <b>Tools → Options → Web UI</b>, since the temporary one changes every time the container restarts.</div>
 
 <h3>Wiring the VPN kill switch the Docker way: gluetun</h3>
 <div class="box learn"><span class="lbl">Understand this: what gluetun actually is, and why qBittorrent has no compose entry of its own network-wise</span>
@@ -861,6 +857,13 @@ Log in with that, then set a proper password of your own straight away under qBi
     <div class="see">You'll see: it should hang and fail completely, qBittorrent's web page becoming unreachable too, not quietly succeed with your home IP instead. That failure is the proof the kill switch is doing its job. Put the correct key back and run <code>docker compose up -d</code> once more to restore it.</div>
   </li>
 </ol>
+
+<h4>Step D, log into qBittorrent for the first time</h4>
+<div class="box why"><span class="lbl">Which address actually loads qBittorrent's web page, and why</span>
+Because qBittorrent borrows gluetun's networking entirely rather than having any of its own, it has no separate address to visit. The address that actually works is your <b>Docker host's own IP</b>, the same one everything else in this stack (Sonarr, Radarr, Prowlarr, Portainer) sits behind, on port <code>8080</code>, for example <code>http://192.168.1.200:8080</code>. That works because port <code>8080</code> is published by gluetun in the compose file above (the <code>ports: - 8080:8080</code> line under the <code>gluetun</code> service, not under <code>qbittorrent</code>), and gluetun in turn hands that traffic straight to qBittorrent, since the two share one network. If you're ever unsure of the Docker host's own address, <code>ip -4 a show eth0</code> run inside it will show you.</div>
+<p>Recent versions of qBittorrent no longer ship with a fixed default password. Instead, the first time it starts it generates a random temporary one and prints it into its own logs, the same idea as the Portainer setup token from earlier. The username is <code>admin</code>, and you get the temporary password by reading its logs, run from inside the Docker container:</p>
+<span class="cmd">docker logs qbittorrent | grep -i password</span>
+<div class="see">You'll see: a line containing a temporary password. Log in with that, then set a proper password of your own straight away under qBittorrent's <b>Tools → Options → Web UI</b>, since the temporary one changes every time the container restarts.</div>
 
 <div class="box undo"><span class="lbl">If you need to undo this entirely</span>
 <code>docker compose down</code>, run from <code>/opt/arrstack</code>, stops and removes all five containers in one go, leaving the config folders and your media untouched, so running <code>docker compose up -d</code> again brings everything straight back the way it was.</div>
