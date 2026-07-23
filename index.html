@@ -828,19 +828,39 @@ When a browser gets a name with no port typed after it, it silently assumes port
   </li>
 </ol>
 
+<h3>Step D, when a service lives one level deeper: Pi-hole's /admin</h3>
+<div class="box learn"><span class="lbl">Understand this: not every service greets you at its own front door</span>
+Some services put their actual interface one level in, at a specific path, rather than right at the address itself. Pi-hole is exactly this: visit its address alone and you land on a mostly blank holding page, the real dashboard lives at <code>/admin</code> on top of that address. Typing <code>nadripihole.com/admin</code> every time works, but it defeats the point of a short, memorable address, so the fix is to teach the proxy to automatically take that extra step for you.</div>
+
+<p>In Nginx Proxy Manager, open the Proxy Host you made for Pi-hole (<code>nadripihole.com</code>), and click into its <b>Advanced</b> tab. Paste this into the custom configuration box:</p>
+<span class="cmd">location = / {
+    return 301 /admin;
+}</span>
+<p>Save.</p>
+<div class="why"><b>Reading it:</b> this says "if someone arrives at exactly the bare address (<code>/</code>), send back a note telling their browser it's moved to <code>/admin</code>." The <b>301</b> is the standard code meaning "moved permanently", and getting one is what makes the browser automatically ask again at the new location, without you typing anything further.</div>
+<ol class="steps">
+  <li>Test it: <code>http://nadripihole.com</code>, nothing typed after it.
+    <div class="see">You'll see: the address bar itself updates to show <code>/admin</code> added on the end, and Pi-hole's actual login page loads, all without you typing it yourself.</div>
+  </li>
+</ol>
+<p>The same trick applies to any future service that hides its real interface behind its own path rather than its own root, just swap <code>/admin</code> for whatever that service's actual path turns out to be.</p>
+
 <div class="box map"><span class="lbl">You'll meet this again</span>
-This is a small taste of what <b>internal DNS</b> and <b>service discovery</b> do inside real organisations at a much larger scale, and a <b>reverse proxy</b> is one of the single most common pieces of real infrastructure anywhere, the exact same job Azure's <b>Application Gateway</b> or a <b>load balancer</b> does in front of cloud services, just at home-lab scale.</div>
+This is a small taste of what <b>internal DNS</b> and <b>service discovery</b> do inside real organisations at a much larger scale, and a <b>reverse proxy</b> is one of the single most common pieces of real infrastructure anywhere, the exact same job Azure's <b>Application Gateway</b> or a <b>load balancer</b> does in front of cloud services, just at home-lab scale. The redirect trick above is a plain example of an <b>HTTP status code</b> doing real work, the three-digit numbers (301, 404, 200 and so on) that every web request and response carries, worth recognising them as a concept you'll meet constantly from here on.</div>
 
 <div class="recap"><span class="lbl">Recap</span>
 <ul><li>A <b>dashboard</b> (Homarr) turns every service into one clickable tile, hiding IPs and ports from whoever's using it.</li>
 <li>A <b>local DNS record</b> in Pi-hole gives the whole house one memorable name instead of an address. Ending it in a real, recognised TLD like <code>.com</code> keeps browsers from treating it as a search, even though it's never actually registered on the public internet. A DNS record can only ever hold a bare address, never a port or protocol.</li>
-<li>A <b>reverse proxy</b> sits on the normal port and forwards each name on to its real container and port internally, which is what finally lets a name work with nothing typed after it.</li></ul></div>
+<li>A <b>reverse proxy</b> sits on the normal port and forwards each name on to its real container and port internally, which is what finally lets a name work with nothing typed after it.</li>
+<li>A service that lives behind its own path, like Pi-hole's <code>/admin</code>, needs one extra rule in the proxy, a <b>301 redirect</b>, so the bare address automatically continues on to the right place.</li></ul></div>
 
 <div class="quiz"><span class="lbl">Check yourself</span>
 <p class="q">Q1. Why does a made-up name like <code>nadrihome.home</code> risk triggering a search instead of navigating, while <code>nadrihome.com</code> doesn't, even though neither is a real registered website?</p>
 <p class="a">Browsers only trust endings they recognise as real, registered TLDs, like .com. An invented ending like .home isn't on that list, so browsers assume it's probably a typo and search instead. Ending the made-up name in a real TLD keeps the browser's trust, even though Pi-hole is answering for it entirely locally and it was never actually registered.</p>
 <p class="q">Q2. Once the reverse proxy is in place, what does each Pi-hole DNS record need to point at, and why?</p>
-<p class="a">The proxy's own address, not each service's own address directly. The proxy is the one thing listening on the normal port and deciding where each name actually goes internally, so every name needs to be routed through it first.</p></div>
+<p class="a">The proxy's own address, not each service's own address directly. The proxy is the one thing listening on the normal port and deciding where each name actually goes internally, so every name needs to be routed through it first.</p>
+<p class="q">Q3. Why does Pi-hole need an extra rule in the proxy that Homarr and Jellyfin don't?</p>
+<p class="a">Pi-hole's real dashboard lives one level in, at /admin, rather than at its own root address. Without a redirect rule, visiting the bare address lands on its mostly blank holding page instead of the login screen.</p></div>
 
 <!-- ===================== OPS ===================== -->
 <div class="partbar">Part 4 · Keep it running, and where to take it next</div>
@@ -918,6 +938,7 @@ A <b>snapshot</b> saves a container's state <em>on the same disk</em>: brilliant
   <dt>Homarr</dt><dd>A dashboard container that shows every one of your services as a clickable tile, so nobody needs to know an IP address or port to reach anything.</dd>
   <dt>Local DNS record</dt><dd>A name-to-address entry you add to Pi-hole yourself, only known inside your own house, letting a memorable name like nadrihome.com replace an IP address. Ending it in a real TLD like .com keeps browsers from treating it as a search. Can only ever hold a bare address, never a port or protocol.</dd>
   <dt>Reverse proxy</dt><dd>A container (here, Nginx Proxy Manager) that sits on the normal web port and forwards each incoming name on to the right internal container and port, which is what lets a name work with no port typed after it.</dd>
+  <dt>HTTP status code / 301 redirect</dt><dd>A three-digit number every web response carries, telling the browser what happened. 301 means "moved permanently", telling the browser to automatically continue on to a new address, used here to send a bare address on to a service's real path like /admin.</dd>
   <dt>Sonarr / Radarr</dt><dd>Separate containers that organise, rename and file TV shows and films into your library folder automatically, and tell Jellyfin to refresh. They don't fetch anything on their own until an indexer and download client are added.</dd>
   <dt>Kill switch</dt><dd>A firewall setup that blocks a container's normal internet connection entirely, leaving a VPN tunnel as the only way in or out, so nothing leaks out if the tunnel drops.</dd>
   <dt>iptables</dt><dd>Linux's built-in tool for filtering network traffic by rule, used here to build the kill switch.</dd>
