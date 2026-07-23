@@ -791,14 +791,17 @@ A <b>dashboard</b> solves "where do I click", one page with an icon per service,
 <h3>Step B, one name for the whole house</h3>
 <div class="box learn"><span class="lbl">Understand this: why Pi-hole is the right tool for this too</span>
 Pi-hole is already the phone book the whole house uses to look up names. Adding your own entry to that phone book is exactly the same idea as it looking up <code>bbc.co.uk</code>, except this entry only exists inside your own house, nobody on the outside internet has ever heard of it, and it can point at whatever you like.</div>
-<p>Worth picking a consistent pattern for these names rather than a different style each time, something like <code>&lt;service&gt;.nadri</code>, so <code>home.nadri</code> for the dashboard, <code>jellyfin.nadri</code>, <code>pihole.nadri</code>, and so on as you add more.</p>
+
+<div class="box safe"><span class="lbl">A genuine gotcha worth knowing before you pick names</span>
+Browsers keep an internal list of endings they trust as real, <code>.com</code>, <code>.org</code>, and so on. Anything invented, like <code>.home</code> or <code>.lan</code>, isn't on that list, and modern browsers (Firefox especially) will quietly send an invented ending to a search engine instead of trying to visit it, purely as a safety precaution. The fix is simple: use a made-up name that still ends in a real, recognised TLD like <code>.com</code>. You never register or pay for it, Pi-hole simply answers for it entirely inside your own house before the request would ever reach the real internet, and because the ending looks legitimate, every browser trusts it and navigates straight there.</div>
+
+<p>Worth picking a consistent pattern rather than a different style each time. This guide uses <code>nadri&lt;service&gt;.com</code>, so <code>nadrihome.com</code> for the dashboard, <code>nadrijellyfin.com</code>, <code>nadripihole.com</code>, and so on as you add more, swap in whatever prefix you like.</p>
 <ol class="steps">
   <li>In Pi-hole's admin page, go to <b>Local DNS</b>, then <b>DNS Records</b>.</li>
-  <li>Add a new record: in the domain field enter <code>home.nadri</code>, and in the IP field enter <b>just the bare IP address</b>, Homarr's address on its own, nothing else typed alongside it. Click <b>Add</b>.
-    <div class="why"><b>Why the dotted ending matters:</b> browsers tend to treat a single bare word typed into the address bar as a search rather than a web address. Giving it a dot, like a normal-looking web address, makes browsers treat it properly as somewhere to go rather than something to search for.</div>
+  <li>Add a new record: in the domain field enter <code>nadrihome.com</code>, and in the IP field enter <b>just the bare IP address</b>, Homarr's address on its own, nothing else typed alongside it. Click <b>Add</b>.
     <div class="safe"><b>Only the address goes in that box:</b> no <code>http://</code>, no port number, no trailing slash. A DNS record can only ever answer "what address does this name mean", it has no way to carry a port or protocol alongside it, so anything extra typed in there gets rejected.</div>
   </li>
-  <li>On any device already using Pi-hole for DNS, open a browser and go to <code>http://home.nadri:7575</code>.
+  <li>On any device already using Pi-hole for DNS, open a browser and go to <code>http://nadrihome.com:7575</code>.
     <div class="see">You'll see: Homarr's dashboard loads. Notice the port number still had to be typed, that's the one piece a plain DNS name can never remove on its own, which is exactly what Step C below finishes off.</div>
   </li>
 </ol>
@@ -813,14 +816,14 @@ When a browser gets a name with no port typed after it, it silently assumes port
 
 <ol class="steps">
   <li>Inside Nginx Proxy Manager, go to <b>Hosts</b>, then <b>Proxy Hosts</b>, then <b>Add Proxy Host</b>.</li>
-  <li>Under <b>Domain Names</b>, enter <code>home.nadri</code>. Under <b>Forward Hostname / IP</b>, enter Homarr's actual address. Under <b>Forward Port</b>, enter <code>7575</code>. Save.
-    <div class="why"><b>What you just told it:</b> "when someone asks for home.nadri, quietly walk them through to Homarr's real address on port 7575." The visitor never sees or types that port at all.</div>
+  <li>Under <b>Domain Names</b>, enter <code>nadrihome.com</code>. Under <b>Forward Hostname / IP</b>, enter Homarr's actual address. Under <b>Forward Port</b>, enter <code>7575</code>. Save.
+    <div class="why"><b>What you just told it:</b> "when someone asks for nadrihome.com, quietly walk them through to Homarr's real address on port 7575." The visitor never sees or types that port at all.</div>
   </li>
-  <li>Back in Pi-hole's Local DNS Records, edit the <code>home.nadri</code> record you made in Step B so its IP now points at the <b>proxy's</b> address instead of Homarr's own address directly.
+  <li>Back in Pi-hole's Local DNS Records, edit the <code>nadrihome.com</code> record you made in Step B so its IP now points at the <b>proxy's</b> address instead of Homarr's own address directly.
     <div class="why"><b>Why this changes:</b> every name now needs to be pointed at the one doorway (the proxy), which then decides internally where each name actually goes. Pointing straight at Homarr again would skip the doorway and land you back needing the port.</div>
   </li>
-  <li>Repeat both steps, a Pi-hole record plus a matching Proxy Host entry, for each additional service, <code>jellyfin.nadri</code> forwarding to Jellyfin's address on port 8096, <code>pihole.nadri</code> forwarding to Pi-hole's address on port 80, and so on, all sharing the one <code>.nadri</code> pattern.</li>
-  <li>Test it: <code>http://home.nadri</code>, with nothing after it at all.
+  <li>Repeat both steps, a Pi-hole record plus a matching Proxy Host entry, for each additional service, <code>nadrijellyfin.com</code> forwarding to Jellyfin's address on port 8096, <code>nadripihole.com</code> forwarding to Pi-hole's address on port 80, and so on, all sharing the one <code>nadri&lt;service&gt;.com</code> pattern.</li>
+  <li>Test it: <code>http://nadrihome.com</code>, with nothing after it at all.
     <div class="see">You'll see: Homarr's dashboard, no port typed anywhere. That's the whole chain working end to end, a name resolves to the proxy, and the proxy quietly finishes the journey.</div>
   </li>
 </ol>
@@ -830,12 +833,12 @@ This is a small taste of what <b>internal DNS</b> and <b>service discovery</b> d
 
 <div class="recap"><span class="lbl">Recap</span>
 <ul><li>A <b>dashboard</b> (Homarr) turns every service into one clickable tile, hiding IPs and ports from whoever's using it.</li>
-<li>A <b>local DNS record</b> in Pi-hole gives the whole house one memorable name instead of an address, using a dotted name like <code>home.nadri</code> so browsers treat it correctly. A DNS record can only ever hold a bare address, never a port or protocol.</li>
+<li>A <b>local DNS record</b> in Pi-hole gives the whole house one memorable name instead of an address. Ending it in a real, recognised TLD like <code>.com</code> keeps browsers from treating it as a search, even though it's never actually registered on the public internet. A DNS record can only ever hold a bare address, never a port or protocol.</li>
 <li>A <b>reverse proxy</b> sits on the normal port and forwards each name on to its real container and port internally, which is what finally lets a name work with nothing typed after it.</li></ul></div>
 
 <div class="quiz"><span class="lbl">Check yourself</span>
-<p class="q">Q1. Why did <code>http://home.nadri</code> alone not reach Homarr until the reverse proxy was added, even though the DNS record already existed?</p>
-<p class="a">A browser with no port typed assumes port 80, but Homarr runs on port 7575. DNS can only supply an address, never a port, so without something answering on port 80 for that name, there was nowhere for the bare address to land.</p>
+<p class="q">Q1. Why does a made-up name like <code>nadrihome.home</code> risk triggering a search instead of navigating, while <code>nadrihome.com</code> doesn't, even though neither is a real registered website?</p>
+<p class="a">Browsers only trust endings they recognise as real, registered TLDs, like .com. An invented ending like .home isn't on that list, so browsers assume it's probably a typo and search instead. Ending the made-up name in a real TLD keeps the browser's trust, even though Pi-hole is answering for it entirely locally and it was never actually registered.</p>
 <p class="q">Q2. Once the reverse proxy is in place, what does each Pi-hole DNS record need to point at, and why?</p>
 <p class="a">The proxy's own address, not each service's own address directly. The proxy is the one thing listening on the normal port and deciding where each name actually goes internally, so every name needs to be routed through it first.</p></div>
 
@@ -913,7 +916,7 @@ A <b>snapshot</b> saves a container's state <em>on the same disk</em>: brilliant
 <dl class="gloss">
   <dt>Fladder</dt><dd>An alternative app for watching your Jellyfin library, built by a different team. Talks to the same server, no changes needed on Jellyfin's side.</dd>
   <dt>Homarr</dt><dd>A dashboard container that shows every one of your services as a clickable tile, so nobody needs to know an IP address or port to reach anything.</dd>
-  <dt>Local DNS record</dt><dd>A name-to-address entry you add to Pi-hole yourself, only known inside your own house, letting a memorable name like home.nadri replace an IP address. Can only ever hold a bare address, never a port or protocol.</dd>
+  <dt>Local DNS record</dt><dd>A name-to-address entry you add to Pi-hole yourself, only known inside your own house, letting a memorable name like nadrihome.com replace an IP address. Ending it in a real TLD like .com keeps browsers from treating it as a search. Can only ever hold a bare address, never a port or protocol.</dd>
   <dt>Reverse proxy</dt><dd>A container (here, Nginx Proxy Manager) that sits on the normal web port and forwards each incoming name on to the right internal container and port, which is what lets a name work with no port typed after it.</dd>
   <dt>Sonarr / Radarr</dt><dd>Separate containers that organise, rename and file TV shows and films into your library folder automatically, and tell Jellyfin to refresh. They don't fetch anything on their own until an indexer and download client are added.</dd>
   <dt>Kill switch</dt><dd>A firewall setup that blocks a container's normal internet connection entirely, leaving a VPN tunnel as the only way in or out, so nothing leaks out if the tunnel drops.</dd>
