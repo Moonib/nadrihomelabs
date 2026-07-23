@@ -1,0 +1,930 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Your Home Server: The Learning Edition</title>
+<style>
+  :root{
+    --ink:#1b242d; --muted:#5b6672; --line:#e4e8ec; --bg:#f5f7f9; --card:#fff;
+    --green:#2f7d5c; --green-soft:#e9f4ee; --amber:#8a5a00; --amber-soft:#fdf3e0;
+    --blue:#2b5c8a; --blue-soft:#e9f1f8; --red:#a3382f; --red-soft:#fbeae8;
+    --teal:#1f6f74; --teal-soft:#e6f2f2; --indigo:#4b4b8a; --indigo-soft:#ecebf7;
+    --purple:#5b4b8a; --purple-soft:#eeeaf6;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    line-height:1.62;font-size:16px;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:800px;margin:0 auto;padding:30px 20px 90px}
+  h1{font-size:1.95rem;line-height:1.18;margin:0 0 6px;color:#163a2c}
+  .sub{color:var(--muted);font-size:1.06rem;margin:0 0 10px}
+  h2{font-size:1.45rem;margin:44px 0 6px;padding-top:24px;border-top:2px solid var(--line);color:#163a2c}
+  h2 .n{color:var(--green);font-weight:800;margin-right:6px}
+  h3{font-size:1.13rem;margin:24px 0 6px}
+  h4{font-size:1rem;margin:22px 0 4px;color:#163a2c}
+  p{margin:10px 0}
+  a{color:var(--blue)}
+  code{background:#eef1f3;padding:1px 6px;border-radius:5px;font-size:.87em;word-break:break-all}
+  .toc{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 18px;margin:18px 0}
+  .toc b{display:block;margin-bottom:6px;font-size:.85rem;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
+  .toc ol{margin:0 0 4px;padding-left:20px} .toc li{margin:3px 0} .toc a{text-decoration:none}
+  .toc .phase{font-size:.8rem;font-weight:700;color:var(--green);margin:12px 0 4px;padding-top:10px;border-top:1px dashed var(--line)}
+  .toc .phase:first-of-type{border-top:none;padding-top:0;margin-top:2px}
+  .partbar{margin:44px 0 0;padding:10px 16px;background:var(--green-soft);border-radius:10px;
+    font-size:.82rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--green)}
+  .partbar + h2{border-top:none;padding-top:8px;margin-top:10px}
+  .box{border-radius:10px;padding:13px 16px;margin:14px 0;border-left:4px solid var(--green);background:var(--green-soft)}
+  .box .lbl{font-weight:700;font-size:.79rem;text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:3px;color:var(--green)}
+  .box.why{border-left-color:var(--blue);background:var(--blue-soft)} .box.why .lbl{color:var(--blue)}
+  .box.safe{border-left-color:var(--amber);background:var(--amber-soft)} .box.safe .lbl{color:var(--amber)}
+  .box.undo{border-left-color:var(--red);background:var(--red-soft)} .box.undo .lbl{color:var(--red)}
+  .box.learn{border-left-color:var(--teal);background:var(--teal-soft)} .box.learn .lbl{color:var(--teal)}
+  .box.map{border-left-color:var(--indigo);background:var(--indigo-soft)} .box.map .lbl{color:var(--indigo)}
+  .box.plain{border-left-color:var(--purple);background:var(--purple-soft)} .box.plain .lbl{color:var(--purple)}
+  ol.steps{counter-reset:s;list-style:none;padding:0;margin:16px 0}
+  ol.steps>li{counter-increment:s;position:relative;padding:14px 0 14px 48px;border-bottom:1px solid var(--line)}
+  ol.steps>li:last-child{border-bottom:none}
+  ol.steps>li::before{content:counter(s);position:absolute;left:0;top:12px;width:32px;height:32px;
+    background:var(--green);color:#fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700}
+  .steps .why{color:var(--muted);font-size:.95rem;margin-top:5px} .steps .why b{color:var(--ink)}
+  .see{color:var(--green);font-size:.93rem;margin-top:5px;font-weight:600}
+  .cmd{display:block;background:#1b242d;color:#e6edf3;padding:11px 14px;border-radius:8px;
+    font-family:ui-monospace,Menlo,monospace;font-size:.8rem;margin:8px 0;overflow-x:auto;white-space:pre-wrap;word-break:break-all}
+  pre.diagram{background:#f0f3f5;border:1px solid var(--line);border-radius:8px;padding:12px 14px;
+    font-family:ui-monospace,Menlo,monospace;font-size:.74rem;line-height:1.5;overflow-x:auto;color:#33404b;margin:12px 0}
+  .recap{background:#eef6f1;border:1px solid #cfe6da;border-radius:12px;padding:12px 18px;margin:18px 0}
+  .recap .lbl{font-weight:800;color:var(--green);font-size:.82rem;text-transform:uppercase;letter-spacing:.05em}
+  .recap ul{margin:6px 0 0;padding-left:18px} .recap li{margin:4px 0}
+  .quiz{background:var(--card);border:1px dashed #b9c2ca;border-radius:12px;padding:6px 18px 14px;margin:18px 0}
+  .quiz .lbl{font-weight:800;color:var(--indigo);font-size:.82rem;text-transform:uppercase;letter-spacing:.05em;display:block;margin:10px 0 2px}
+  .quiz .q{font-weight:600;margin:12px 0 0}
+  .quiz .a{color:#39434e;font-size:.95rem;margin:4px 0 0;padding:8px 12px;background:#f4f6f8;border-radius:8px}
+  .quiz .a::before{content:"Answer: ";font-weight:700;color:var(--indigo)}
+  .gloss dt{font-weight:700;margin-top:12px} .gloss dd{margin:2px 0 0;color:#39434e}
+  .tag{display:inline-block;font-size:.72rem;font-weight:700;padding:2px 8px;border-radius:20px;background:var(--blue-soft);color:var(--blue);vertical-align:middle}
+  .tag.hand{background:var(--teal-soft);color:var(--teal)}
+  .tag.auto{background:var(--green-soft);color:var(--green)}
+  details.jargon{border:1px solid var(--line);border-radius:12px;background:#fff;margin:16px 0;padding:0 16px}
+  details.jargon>summary{cursor:pointer;font-weight:700;color:#163a2c;padding:13px 2px;font-size:1rem;list-style:none}
+  details.jargon>summary::-webkit-details-marker{display:none}
+  details.jargon>summary::before{content:"\25B8";color:#2f7d5c;margin-right:8px;font-size:.85em}
+  details.jargon[open]>summary::before{content:"\25BE"}
+  .jmap{width:100%;border-collapse:collapse;margin:4px 0 14px;font-size:.9rem}
+  .jmap th,.jmap td{border:1px solid var(--line);padding:7px 9px;text-align:left;vertical-align:top}
+  .jmap th{background:#eef1f3;font-size:.72rem;text-transform:uppercase;letter-spacing:.03em;color:#5b6672}
+  .jmap td.a{font-weight:700;color:#2f7d5c}
+  .jmap td.r{font-weight:700;color:#2b5c8a}
+  .figwrap{margin:18px 0;text-align:center}
+  .figwrap svg{width:100%;height:auto;max-width:850px}
+  .figcap{font-size:.85rem;color:#5b6672;margin-top:2px}
+  footer{margin-top:44px;padding-top:16px;border-top:1px solid var(--line);color:var(--muted);font-size:.85rem}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>Your Home Server: The Learning Edition</h1>
+<p class="sub">Build a real home server and, without really trying, learn the foundations of modern IT: virtualization, Linux, networking, containers and security. Every step is also a lesson, so you finish understanding what you did and why.</p>
+
+<div class="box">
+  <span class="lbl">How this edition works</span>
+  It still walks you through every click, but now each step is a lesson. Watch for these along the way: a teal <b>"Understand this"</b> box goes one level deeper into how something really works; an indigo <b>"You'll meet this again"</b> box connects what you just did to AZ-900, the cloud, and the wider industry; each section ends with a green <b>recap</b> and a couple of <b>check-yourself questions</b>. Read the boxes, attempt the questions before reading the answers, and you'll come out the other side genuinely understanding this stuff, not just having followed it.
+</div>
+
+<div class="box map">
+  <span class="lbl">Why this is a shortcut into tech</span>
+  Courses like AZ-900 describe things like "virtual machines", "networking" and "containers" from a height. The reason they can feel slippery is that you've never <em>held</em> them. This project makes you build all of them by hand on your own box. When AZ-900 later says "Azure runs your VM on a hypervisor", you'll think "right, like Proxmox on my OptiPlex" instead of memorising a definition. That is the difference between passing and understanding, and it's also how you find out which parts of tech you actually enjoy.
+</div>
+
+<div class="toc">
+  <b>Contents</b>
+  <div class="phase">Part 1 · Get your head around it first</div>
+  <ol>
+    <li><a href="#map">Your learning map: what you're about to touch</a></li>
+    <li><a href="#concepts">The mental model everything hangs off</a></li>
+    <li><a href="#prep">Prep, and the vocabulary to have ready</a></li>
+  </ol>
+  <div class="phase">Part 2 · Build the machine and its core services</div>
+  <ol start="4">
+    <li><a href="#proxmox">Installing Proxmox: meet the hypervisor</a></li>
+    <li><a href="#linux">First login: Linux, packages and the command line</a></li>
+    <li><a href="#pihole">Your first container + Pi-hole: containers &amp; networking</a></li>
+    <li><a href="#storage">Storage: giving Jellyfin somewhere to live</a></li>
+    <li><a href="#jellyfin">Jellyfin: watching your media (and the Fladder app)</a></li>
+  </ol>
+  <div class="phase">Part 3 · Reach it anywhere, and make it self-sufficient</div>
+  <ol start="9">
+    <li><a href="#remote">Remote access: the whole of home networking, and security</a></li>
+    <li><a href="#automate">Automating your media library: Sonarr, Radarr and a VPN</a></li>
+    <li><a href="#dashboard">One front door for the family: a dashboard and a memorable address</a></li>
+  </ol>
+  <div class="phase">Part 4 · Keep it running, and where to take it next</div>
+  <ol start="12">
+    <li><a href="#ops">Ops discipline: the habits that separate hobbyists from pros</a></li>
+    <li><a href="#roadmap">The roadmap: the other apps worth adding</a></li>
+    <li><a href="#next">Where this points your career (and beyond AZ-900)</a></li>
+    <li><a href="#glossary">Glossary of every term you'll meet</a></li>
+  </ol>
+</div>
+
+<!-- ===================== MAP ===================== -->
+<div class="partbar">Part 1 · Get your head around it first</div>
+<h2 id="map"><span class="n">1.</span>Your learning map: what you're about to touch</h2>
+<p>Before any clicking, here's the honest "why should I care" for each thing you'll build. These five foundations underpin basically every IT and cloud role.</p>
+<pre class="diagram">
+  ONE physical PC (your OptiPlex)
+        │
+        ▼
+  ┌───────────────── PROXMOX (the hypervisor) ─────────────────┐
+  │   turns one machine into many isolated "computers"          │
+  │                                                             │
+  │   ┌── container ──┐   ┌── container ──┐   ┌── container ──┐ │
+  │   │   Pi-hole     │   │   Jellyfin    │   │  (next toy)   │ │
+  │   │  networking / │   │  a "service"  │   │               │ │
+  │   │     DNS       │   │  on a "port"  │   │               │ │
+  │   └───────────────┘   └───────────────┘   └───────────────┘ │
+  └─────────────────────────────────────────────────────────────┘
+        │                                   ▲
+        ▼                                   │
+  your home network  ── router ──  the internet  (kept apart by design)
+</pre>
+<ul>
+  <li><b>Virtualization</b> (Proxmox): running many virtual computers on one physical one. This is literally the engine the entire cloud is built on.</li>
+  <li><b>Linux &amp; the command line</b>: the operating system that runs most servers and clouds on Earth. You'll use it for real, not in theory.</li>
+  <li><b>Networking</b> (IP, DNS, DHCP, NAT, ports): how machines find and talk to each other. The single most transferable skill in this whole list.</li>
+  <li><b>Containers</b> (LXC here; Docker/Kubernetes in industry): lightweight isolated environments. One of the hottest skill areas in tech.</li>
+  <li><b>Security</b> (public vs private, least privilege, tunnels): keeping the right things reachable and the wrong things out.</li>
+</ul>
+
+<!-- ===================== CONCEPTS ===================== -->
+<h2 id="concepts"><span class="n">2.</span>The mental model everything hangs off</h2>
+<p>Five ideas. Read once; the rest of the guide keeps pointing back to them.</p>
+
+<div class="box plain"><span class="lbl">1 · Home network vs the internet</span>
+Everything on your wifi is your <b>local network</b> (the inside). The <b>internet</b> is the outside. Your <b>router</b> is the guarded door between them, and by default it lets conversations <em>out</em> but blocks uninvited ones coming <em>in</em>. Your server lives inside.</div>
+
+<div class="box plain"><span class="lbl">2 · An IP address is a house number</span>
+Every device has an <b>IP address</b> like <code>192.168.1.42</code> so things can find each other. Addresses starting <code>192.168.</code> (also <code>10.</code> and <code>172.16-31.</code>) are <b>private</b>: they only mean something inside your network. The outside world can't see them.</div>
+
+<div class="box plain"><span class="lbl">3 · DNS is the internet's phone book</span>
+Type <code>bbc.co.uk</code> and your device asks a <b>DNS</b> service "what's the number for that name?" and gets an IP back. <b>Pi-hole</b> will be your own phone book that answers normally but refuses to look up ad/tracker names, so ads never load.</div>
+
+<div class="box plain"><span class="lbl">4 · A hypervisor makes one computer act like many</span>
+<b>Proxmox</b> is a <b>hypervisor</b>: software whose whole job is to run several separate virtual computers on one physical box, each walled off from the others. Each little one here is a <b>container</b>.</div>
+
+<div class="box plain"><span class="lbl">5 · A snapshot is a save point</span>
+Proxmox can photograph a container's exact state before you change it. Break something, "roll back", and it's as it was in seconds. This is your safety net and you'll lean on it constantly.</div>
+
+<div class="box map"><span class="lbl">You'll meet this again</span>
+Ideas 1 to 3 are the core of the <b>CompTIA Network+</b> and the networking slice of every cloud cert. Idea 4 (virtualization) is the foundation of <b>IaaS</b> in AZ-900: an Azure VM is just a virtual machine on Microsoft's hypervisors instead of yours. Idea 5 is the seed of <b>backup &amp; disaster recovery</b>, a topic in its own right.</div>
+
+<div class="recap"><span class="lbl">Recap</span>
+<ul><li>Inside (local network) and outside (internet) are separated by the router on purpose.</li>
+<li>Private IPs identify devices inside; DNS turns names into those numbers.</li>
+<li>A hypervisor runs many virtual machines/containers on one physical machine; snapshots let you undo.</li></ul></div>
+
+<div class="quiz"><span class="lbl">Check yourself</span>
+<p class="q">Q1. Your friend says "just put your Jellyfin on <code>192.168.1.60</code> and I'll watch it from my house." Why won't that work as-is?</p>
+<p class="a"><code>192.168.x</code> is a private address that only exists inside your own network, so it means nothing from their house. Reaching it from outside needs something extra (later: Tailscale), never just the private IP.</p>
+<p class="q">Q2. In one sentence, what does a hypervisor do?</p>
+<p class="a">It runs multiple isolated virtual computers on a single physical machine.</p></div>
+
+<!-- ===================== PREP ===================== -->
+<h2 id="prep"><span class="n">3.</span>Prep, and the vocabulary to have ready</h2>
+<ul>
+  <li><b>The OptiPlex</b>, RAM and SSD fitted, plugged into power and into your router with an <b>ethernet cable</b>. <span class="tag">wired = simpler + steadier</span></li>
+  <li><b>A USB stick</b> (2GB+, gets wiped).</li>
+  <li><b>Your laptop</b> on the same wifi, for the browser side.</li>
+  <li><b>Your router's admin login</b> (often on a sticker on the router). Find it now.</li>
+  <li><b>A notes file</b> for addresses and passwords as you make them. Treat this as part of the skill: professionals document everything.</li>
+</ul>
+<div class="box learn"><span class="lbl">Understand this: why wired matters</span>
+An always-on server on wifi has to keep re-negotiating a radio link that drops and shares airtime with everything else. A wired <b>ethernet</b> connection is a dedicated, stable path. In a data centre or the cloud, servers are <em>never</em> on wifi for exactly this reason. Small detail, real-world principle.</div>
+
+<!-- ===================== PROXMOX ===================== -->
+<div class="partbar">Part 2 · Build the machine and its core services</div>
+<h2 id="proxmox"><span class="n">4.</span>Installing Proxmox: meet the hypervisor</h2>
+
+<div class="box learn"><span class="lbl">Understand this before you start: what is Proxmox?</span>
+Proxmox VE is a free operating system built on <b>Debian Linux</b> whose job is to be a <b>Type 1 hypervisor</b>. "Type 1" means it installs directly onto the bare hardware and the virtual machines run on top of it (as opposed to "Type 2" like VirtualBox, which runs as an app inside Windows). Type 1 is what real servers and clouds use because there's no extra operating system in the way stealing performance. You're installing the same <em>class</em> of software that runs Azure, AWS and Google Cloud, just the home edition.</div>
+
+<h3>Step A, make the install USB <span class="tag hand">you do this by hand</span></h3>
+<ol class="steps">
+  <li>On your laptop, go to <code>proxmox.com</code> → Downloads → <b>Proxmox VE</b>, and download the <code>.iso</code> file.
+    <div class="why"><b>What an ISO is:</b> a single file that is an exact image of an install disc. It contains the whole operating system, ready to be written to a USB and booted.</div>
+  </li>
+  <li>Download <b>balenaEtcher</b> from <code>balena.io/etcher</code>, open it, choose <b>Flash from file</b> → the ISO, <b>Select target</b> → your USB stick (check it's the stick!), then <b>Flash</b>.
+    <div class="why"><b>Why not just copy it on:</b> a bootable stick needs the data written in a special low-level layout the computer can start from, which Etcher does. Copy-paste wouldn't boot.</div>
+    <div class="see">You'll see: "Flash Complete." The stick is now an installer.</div>
+  </li>
+</ol>
+
+<h3>Step B, install onto the OptiPlex <span class="tag hand">by hand</span></h3>
+<ol class="steps">
+  <li>Insert the stick, power on, tap <code>F12</code> repeatedly, and pick the USB from the <b>boot menu</b>.
+    <div class="why"><b>What's happening:</b> the "boot menu" lets you choose which drive the machine starts from this once. Normally it starts from its internal drive; you're telling it to start from your installer instead.</div>
+  </li>
+  <li>Choose <b>Install Proxmox VE (Graphical)</b> and accept the licence.</li>
+  <li><b>Target drive:</b> choose your Crucial SSD (check the size looks right, ~480GB).
+    <div class="why"><b>Understand this:</b> the installer will format this drive and lay down a Linux filesystem plus Proxmox. "Format" means wipe and set up a fresh filing system. It's the one destructive moment, hence the check.</div>
+  </li>
+  <li><b>Country / timezone / password / email:</b> set a strong <b>root password</b> (write it down) and any email.
+    <div class="why"><b>Who "root" is:</b> on Linux, <code>root</code> is the all-powerful administrator account (the equivalent of full admin on Windows). This password guards total control of the machine, so it matters.</div>
+  </li>
+  <li><b>Network screen:</b> note the <b>IP Address</b> it shows (e.g. <code>192.168.1.50</code>). Accept sensible defaults for the rest.
+    <div class="why"><b>Why write it down:</b> that address is how you'll reach the server from your laptop. It's the front-door number for everything from here on.</div>
+  </li>
+  <li>Click <b>Install</b>, let it finish, and remove the USB as it reboots.
+    <div class="see">You'll see: a blue screen ending with something like <code>https://192.168.1.50:8006</code>. That's your control panel address. The machine can now run "headless" (no monitor or keyboard).</div>
+  </li>
+</ol>
+
+<div class="box learn"><span class="lbl">Understand this: "headless" and why servers are like it</span>
+A <b>headless</b> machine has no screen, keyboard or mouse; you administer it entirely over the network from another device. Nearly all servers on Earth are headless, sitting in racks nobody looks at, managed remotely. You just set one up. That web address on port <code>:8006</code> is your remote management console.</div>
+
+<div class="box map"><span class="lbl">You'll meet this again</span>
+This is <b>IaaS (Infrastructure as a Service)</b> from the ground up, an explicit AZ-900 topic. When Azure gives you a VM, they've done what you just did (hypervisor on hardware) and handed you the "create a virtual machine" button. You now know what's behind that button.</div>
+
+<div class="recap"><span class="lbl">Recap</span>
+<ul><li>Proxmox is a Type 1 (bare-metal) hypervisor built on Debian Linux.</li>
+<li>An ISO is a bootable disc image; you flashed it to USB to install from.</li>
+<li><code>root</code> is the Linux super-admin; servers run headless, managed over the network on a port.</li></ul></div>
+
+<div class="quiz"><span class="lbl">Check yourself</span>
+<p class="q">Q1. What's the difference between a Type 1 and Type 2 hypervisor?</p>
+<p class="a">Type 1 runs directly on the hardware (Proxmox, ESXi, Azure's); Type 2 runs as an application inside an existing OS (VirtualBox). Type 1 is faster and used for servers/cloud.</p>
+<p class="q">Q2. You set a password for an account called "root". What is root?</p>
+<p class="a">The all-powerful administrator account on a Linux system, with complete control over the machine.</p></div>
+
+<!-- ===================== LINUX ===================== -->
+<h2 id="linux"><span class="n">5.</span>First login: Linux, packages and the command line</h2>
+<ol class="steps">
+  <li>On your laptop browser, go to your <code>https://192.168.1.50:8006</code> address (include <code>https://</code> and <code>:8006</code>).
+    <div class="why"><b>What the <code>:8006</code> means:</b> a single machine can run many services at once, so each listens on a numbered <b>port</b>, like flat numbers at one street address. Proxmox's web console lives on port 8006. You'll see this idea everywhere.</div>
+  </li>
+  <li>The browser warns "not private". Here that's expected: click <b>Advanced → Proceed</b>.
+    <div class="why"><b>Understand this:</b> that warning means the site's security certificate isn't signed by a public authority. For a public bank site that'd be alarming; for your own machine on your own network it's normal, because no public authority has vouched for your private box. The connection is still encrypted.</div>
+  </li>
+  <li>Log in with <code>root</code> and your password. Dismiss the "No valid subscription" notice (it's an optional paid support plan).
+    <div class="see">You'll see: the Proxmox dashboard. On the left is your server ("node"); clicking it reveals tabs.</div>
+  </li>
+  <li>Click your node, then <b>Shell</b>. A black terminal opens. Type <code>hostnamectl</code> and press Enter.
+    <div class="why"><b>What you just did:</b> the <b>Shell</b> is a command-line terminal <em>on the server itself</em>. <code>hostnamectl</code> prints system info. You're now "in" a Linux machine, typing commands, the way most of the server world is actually run.</div>
+  </li>
+</ol>
+
+<div class="box learn"><span class="lbl">Understand this: how Linux installs software (this is a big one)</span>
+On Windows you download an <code>.exe</code> and double-click. Linux mostly uses a <b>package manager</b>: a built-in tool that fetches software from trusted online <b>repositories</b> (curated software libraries) and installs it with dependencies handled for you. Proxmox is Debian-based, so its package manager is <b>apt</b>. Two commands do almost everything:
+<span class="cmd">apt update      # refresh the list of available software
+apt upgrade     # install newer versions of what you have</span>
+This is one of the most useful things you can learn, because every Debian/Ubuntu server on the planet works this way.</div>
+
+<h3>The one setup script, and what it's actually doing <span class="tag auto">script for speed, explained fully</span></h3>
+<ol class="steps">
+  <li>Open <b>community-scripts.org</b>, find <b>Proxmox VE Post Install</b>, copy the command into the Shell, run it, accept the sensible defaults, and reboot when asked.
+    <div class="why"><b>What it does under the hood, so you learn it:</b> a fresh Proxmox is configured to use the <em>enterprise</em> software repository, which needs a paid subscription, so updates fail and it nags you. The script switches you to the free <em>no-subscription</em> repository and turns off the nag. In plain apt terms it's editing the repository list (files under <code>/etc/apt/</code>) and running <code>apt update</code>. You could do it by hand; the script just saves fiddly typing.</div>
+    <div class="see">You'll see: text scrolling as it edits repositories and refreshes, then a reboot prompt.</div>
+  </li>
+</ol>
+
+<div class="box safe"><span class="lbl">The rule for the Shell (a real security habit)</span>
+Only paste commands from an <b>official project's own site</b> (community-scripts.org, or a vendor's own domain like tailscale.com later). Pasting a command you don't understand from a random forum is exactly how people get compromised. "Don't run untrusted code as root" is a principle you'll see stated formally in every security course.</div>
+
+<div class="box map"><span class="lbl">You'll meet this again</span>
+Package managers, repositories and the command line are <b>day-one Linux skills</b>. They're the core of <b>CompTIA Linux+</b> and assumed knowledge for <b>AZ-104</b>, DevOps, and cloud engineering (cloud servers are overwhelmingly Linux). The comfort you build typing in this Shell is directly transferable and genuinely uncommon at entry level, so it stands out.</div>
+
+<div class="recap"><span class="lbl">Recap</span>
+<ul><li>Services listen on numbered <b>ports</b> (Proxmox = 8006); one machine, many services.</li>
+<li>The <b>Shell</b> is a Linux command line on the server; you ran your first commands.</li>
+<li>Linux installs software via a <b>package manager</b> (<code>apt</code>) from <b>repositories</b>; the post-install script just automated a repo change.</li></ul></div>
+
+<div class="quiz"><span class="lbl">Check yourself</span>
+<p class="q">Q1. What does <code>apt update</code> do, and how does it differ from <code>apt upgrade</code>?</p>
+<p class="a"><code>apt update</code> refreshes the list of what software is available; <code>apt upgrade</code> actually installs the newer versions. Update = check, upgrade = apply.</p>
+<p class="q">Q2. Why does the browser warn that Proxmox "isn't private", and why is it fine here?</p>
+<p class="a">Its security certificate isn't signed by a public authority (it's self-signed for a private machine). It's fine because it's your own server on your own network; the connection is still encrypted.</p></div>
+
+<!-- ===================== PIHOLE ===================== -->
+<h2 id="pihole"><span class="n">6.</span>Your first container + Pi-hole: containers &amp; networking</h2>
+<p>This is the richest learning section, so we build the container <b>by hand</b> (it's the single best way to understand virtualization), then install Pi-hole inside it and learn how networks actually resolve names.</p>
+
+<div class="box learn"><span class="lbl">Understand this: container vs virtual machine</span>
+Both give you an isolated "computer", but differently. A <b>virtual machine</b> pretends to be a whole physical PC and runs its own complete operating system, so it's heavier. A <b>container</b> shares the host's Linux core (kernel) and just isolates the software on top, so it's much lighter and starts in seconds. Proxmox's containers use <b>LXC</b>. Rule of thumb: containers for lightweight Linux services (like Pi-hole), VMs when you need a full separate OS (like Windows). This exact trade-off is a huge topic in industry, where <b>Docker</b> and <b>Kubernetes</b> made containers the default way to ship software.</div>
+
+<h3>Step A, create your first container by hand <span class="tag hand">you do this by hand</span></h3>
+<ol class="steps">
+  <li>In Proxmox, first get a "template" (a ready-made mini OS to base the container on): click your node → <b>local (storage)</b> → <b>CT Templates</b> → <b>Templates</b>, and download <b>debian-12-standard</b>.
+    <div class="why"><b>What a template is:</b> a pre-built base image of a minimal operating system. Your container starts as a copy of it, so you're not installing an OS from scratch each time. Cloud works the same way ("images").</div>
+  </li>
+  <li>Top-right, click <b>Create CT</b> (CT = container). Give it a <b>hostname</b> like <code>pihole</code>, and set a password for inside the container.</li>
+  <li>Choose the <b>debian-12</b> template you downloaded. For resources, modest is fine: <b>1 CPU core, 512MB memory, 4GB disk</b>.
+    <div class="why"><b>Understand this:</b> you're carving off a slice of the physical machine's cores, memory and disk to give this little computer. This is exactly what "sizing a VM" means in the cloud, where you pick how much CPU/RAM to rent. Pi-hole is tiny, so it needs almost nothing.</div>
+  </li>
+  <li>On the network screen, leave it to get its address automatically (DHCP) for now, finish the wizard, and <b>Start</b> the container.
+    <div class="why"><b>What DHCP is:</b> "Dynamic Host Configuration Protocol", the service (usually on your router) that automatically hands out IP addresses to devices that join the network, so you don't set them by hand. Your phone, laptop and now this container all get theirs this way.</div>
+    <div class="see">You'll see: your container listed in the left panel, and under its <b>Summary</b> the IP it was given, e.g. <code>192.168.1.51</code>. You built a working computer in about two minutes.</div>
+  </li>
+</ol>
+
+<div class="box safe"><span class="lbl">Pin its address (so networking stays predictable)</span>
+Because the whole house will soon rely on Pi-hole's address, it shouldn't change. Easiest way: in your <b>router</b>, find <b>DHCP reservation</b> and tie Pi-hole's address to it permanently. <b>Why this matters technically:</b> DHCP leases can change over time; a <b>reservation</b> (or a manually set "static" IP) guarantees a fixed number. Servers almost always get fixed addresses for this reason.</div>
+
+<h3>Step B, install Pi-hole inside the container</h3>
+<ol class="steps">
+  <li>Select the container → <b>Console</b>, log in as <code>root</code> with the password you set, and run Pi-hole's official installer:
+    <span class="cmd">curl -sSL https://install.pi-hole.net | bash</span>
+    <div class="why"><b>What this line means, piece by piece:</b> <code>curl</code> downloads a file from a web address; the <code>|</code> ("pipe") feeds that downloaded script straight into <code>bash</code>, which runs it. It's from Pi-hole's official domain, so it's trusted. Follow the prompts, accepting defaults; when it offers an upstream DNS provider pick one like Cloudflare.
+    </div>
+    <div class="see">You'll see: a blue setup wizard, then a final screen giving you the admin web address (<code>http://192.168.1.51/admin</code>) and a password. Write both down.</div>
+  </li>
+</ol>
+
+<div class="box learn"><span class="lbl">Understand this: what actually happens when you open a website</span>
+This is the concept Pi-hole teaches, and it's gold for interviews and certs. When you type <code>bbc.co.uk</code>:
+<pre class="diagram">
+your device ──"what's the IP for bbc.co.uk?"──▶ Pi-hole (your DNS resolver)
+      │                                              │
+      │                          is it on the ad/tracker blocklist?
+      │                          ├─ yes ▶ reply "nothing here" (ad never loads)
+      │                          └─ no  ▶ ask an upstream DNS (e.g. Cloudflare)
+      │                                     which returns the real IP
+      ◀──────────── real IP (e.g. 151.101.0.81) ─────────────┘
+your device then connects to that IP to load the page
+</pre>
+DNS runs on <b>port 53</b>. Pi-hole is simply a DNS resolver that consults a blocklist first. That's the entire trick, and now you understand it properly.</div>
+
+<h3>Step C, roll it out safely (test on one device first)</h3>
+<p>This is the one change that touches the whole household, so we de-risk it exactly like a professional would: test on a single device, keep the undo ready, then roll out.</p>
+<ol class="steps">
+  <li><b>Test on your phone only:</b> phone wifi settings → your network → <b>DNS</b> → switch to Manual → enter Pi-hole's IP (<code>192.168.1.51</code>). Browse.
+    <div class="see">You'll see: sites load, many ads vanish, and Pi-hole's dashboard counter climbs. Proof, affecting nobody else.</div>
+  </li>
+  <li><b>Then roll out to everyone:</b> log into your <b>router</b>, find the <b>DNS server</b> setting, note the current value, and replace it with Pi-hole's IP. Save, then reconnect a device.
+    <div class="why"><b>Why the router:</b> it hands out DNS settings to every device via DHCP, so changing it once points the whole house at Pi-hole automatically.</div>
+  </li>
+</ol>
+
+<div class="box undo"><span class="lbl">If it goes wrong (know this before you touch the router)</span>
+If the house can't load sites, set the router's DNS <b>back to Automatic / the value you noted</b>. Everyone is back to normal within a minute. This never touches your actual internet line, only <em>which phone book</em> devices consult, so it's fully reversible. Also good to know: if you later shut the server off for a while, switch the router DNS back first, or the house will struggle to look names up until it returns.</div>
+
+<div class="box map"><span class="lbl">You'll meet this again</span>
+DNS, DHCP, ports and IP addressing are the backbone of <b>CompTIA Network+</b> and appear in every cloud platform: Azure has <b>Azure DNS</b> and hands out private IPs to VMs inside <b>virtual networks</b> exactly like your router does at home. "It's always DNS" is the industry's favourite troubleshooting joke because DNS problems are so common; you now know why.</div>
+
+<div class="recap"><span class="lbl">Recap</span>
+<ul><li>Containers are lightweight isolated computers sharing the host kernel; you built one from a <b>template</b> and sized its CPU/RAM/disk.</li>
+<li><b>DHCP</b> auto-assigns IPs; a <b>reservation</b> pins one so servers stay findable.</li>
+<li><b>DNS</b> resolves names to IPs on port 53; Pi-hole is a resolver that filters a blocklist first.</li>
+<li>You rolled out a network-wide change the safe way: test one device, keep the undo, then apply.</li></ul></div>
+
+<div class="quiz"><span class="lbl">Check yourself</span>
+<p class="q">Q1. A container and a VM both isolate a workload. What's the key technical difference?</p>
+<p class="a">A VM runs its own full operating system (heavier); a container shares the host's kernel and only isolates the software on top (lighter, faster to start).</p>
+<p class="q">Q2. Walk through what DNS does when you visit a site, in one sentence.</p>
+<p class="a">Your device asks a DNS resolver for the IP address behind the name, and once it gets the number it connects to that IP to load the page.</p>
+<p class="q">Q3. Why give the Pi-hole container a reserved (fixed) IP?</p>
+<p class="a">Because the whole network will point at that address for DNS; if DHCP changed it, lookups would break. Servers need predictable addresses.</p></div>
+
+<!-- ===================== STORAGE ===================== -->
+<h2 id="storage"><span class="n">7.</span>Storage: giving Jellyfin somewhere to live</h2>
+<p>Your SSD runs the system; this new hard drive holds the media. Before Jellyfin can use it you have to prepare the drive, attach it into Linux, and open a controlled doorway from the host into the Jellyfin container. Do this once Proxmox is running and after the Jellyfin container exists, so you have something to point it at.</p>
+
+<div class="box learn"><span class="lbl">Understand this: SSD for the system, hard drive for the data</span>
+Two jobs, two kinds of drive. Your <b>SSD</b> is fast but small: ideal for the operating system and apps that do constant small reads and writes. Your <b>NAS hard drive</b> is big and cheap per terabyte: ideal for bulk media that's read in long steady streams and doesn't need speed. Splitting "fast small disk for the system" from "big cheap disk for the data" is a standard design you'll see everywhere, including cloud VMs, which pair a small <b>OS disk</b> with larger attached <b>data disks</b> for exactly this reason.</div>
+
+<h3>Step A, fit the drive <span class="tag hand">by hand</span></h3>
+<ol class="steps">
+  <li>With the machine off, connect the hard drive's <b>SATA data</b> and <b>SATA power</b> cables (same as the SSD) and secure it. Power back on.
+    <div class="why"><b>Why alongside, not instead:</b> the SSD stays as your system drive; this is a second, separate drive purely for files.</div>
+  </li>
+</ol>
+
+<h3>Step B, put a filesystem on it <span class="tag hand">by hand, strong learning</span></h3>
+<div class="box learn"><span class="lbl">Understand this: raw disk vs filesystem</span>
+A brand-new drive is just raw empty space; the system can't store files on it until you put a <b>filesystem</b> on it. A filesystem is the organising structure (folders, names, where each file physically lives) that turns raw space into something usable, like fitting an empty warehouse with labelled shelving. "Formatting" means laying that structure down. Windows uses one called NTFS; Linux most commonly uses <b>ext4</b>, which is what you'll use.</div>
+<ol class="steps">
+  <li>In the Proxmox <b>Shell</b>, list the drives to find the new one:
+    <span class="cmd">lsblk</span>
+    <div class="why"><b>Reading it:</b> this lists every disk with its size. Your SSD (~480G, with Proxmox on it) will be there; the empty ~8T disk is the new one, most likely called <code>/dev/sdb</code>. <b>Note its name carefully</b>: the next command wipes whatever you name.</div>
+  </li>
+  <li>Format the new drive with ext4 (swap <code>sdb</code> for whatever <code>lsblk</code> showed):
+    <span class="cmd">mkfs.ext4 /dev/sdb</span>
+    <div class="why"><b>What this does:</b> writes the ext4 filesystem onto the drive, making it ready to hold files. It erases the drive, which is fine because it's new and empty. This is exactly why you double-checked the name first.</div>
+  </li>
+</ol>
+
+<h3>Step C, mount it into Linux</h3>
+<div class="box learn"><span class="lbl">Understand this: mounting, and Linux's single tree</span>
+Windows gives each drive its own letter (C:, D:). Linux is different, and once it clicks, cleaner: there is one folder tree starting at <code>/</code> (the "root"), and you <b>mount</b> a drive <em>into</em> that tree at a folder of your choosing. Your media drive won't be "D:"; it'll appear as, say, <code>/mnt/media</code>. Mounting is simply attaching a drive to a chosen spot in the tree.</div>
+<ol class="steps">
+  <li>Make a folder to mount it at, and mount it:
+    <span class="cmd">mkdir -p /mnt/media
+mount /dev/sdb /mnt/media</span>
+    <div class="see">You'll see: nothing dramatic, which means success. Run <code>df -h</code> and your ~8T drive now shows against <code>/mnt/media</code>. It's part of the filesystem.</div>
+  </li>
+  <li>Make it mount automatically at every boot. First get the drive's unique ID:
+    <span class="cmd">blkid /dev/sdb</span>
+    Copy the <code>UUID="..."</code> value it prints. Open the config file in the built-in editor:
+    <span class="cmd">nano /etc/fstab</span>
+    add this line at the bottom (paste your UUID in place of the x's), then save with Ctrl+O, Enter, Ctrl+X:
+    <span class="cmd">UUID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx  /mnt/media  ext4  defaults  0  2</span>
+    <div class="why"><b>What fstab is:</b> a file listing drives Linux should mount automatically at startup. Without this line, the drive would disappear after a reboot and Jellyfin would lose its library. Editing config files like this by hand is a big part of real Linux administration, so this is good practice, not just a chore.</div>
+  </li>
+</ol>
+
+<h3>Step D, open a doorway into the Jellyfin container (bind mount)</h3>
+<div class="box learn"><span class="lbl">Understand this: why the container can't see the drive yet</span>
+Remember, a container is deliberately walled off from the host; that isolation is the point. So even though the host can now see <code>/mnt/media</code>, your Jellyfin container cannot, by design. You open one specific, controlled doorway called a <b>bind mount</b>: it makes a single host folder appear inside the container. You're not exposing the whole host, just sharing the one media folder in.</div>
+<ol class="steps">
+  <li>Find your Jellyfin container's ID (the number next to it in Proxmox, e.g. <code>101</code>), then from the host Shell attach the folder into it:
+    <span class="cmd">pct set 101 -mp0 /mnt/media,mp=/media</span>
+    <div class="why"><b>Reading it:</b> <code>pct</code> is Proxmox's container tool. This says "for container 101, add mount point 0: share the host's <code>/mnt/media</code> so it appears inside as <code>/media</code>." Now your big drive is visible at <code>/media</code> from inside Jellyfin.</div>
+  </li>
+</ol>
+
+<div class="box safe"><span class="lbl">The genuinely fiddly bit: permissions</span>
+One real gotcha. For security, "unprivileged" containers remap their internal user accounts to different numbers on the host, so the container can be blocked from reading the shared folder even though it's right there. The fix is a one-line ownership or mapping tweak, but which one depends on how your Jellyfin container was created (helper script or by hand). Rather than guess and have it silently not work, note where you are when you hit this and confirm how you made the container; the exact command is a 30-second job once that's known.</div>
+
+<h3>Step E, point Jellyfin at it</h3>
+<ol class="steps">
+  <li>In Jellyfin's web page, add or edit your media <b>library</b> and set its folder to <code>/media</code> (or a subfolder like <code>/media/films</code>). Copy some video files onto the drive and let Jellyfin scan.
+    <div class="see">You'll see: your films and shows appear in Jellyfin, now served from the big drive with terabytes to grow into.</div>
+  </li>
+</ol>
+
+<div class="box map"><span class="lbl">You'll meet this again</span>
+Filesystems, mounting, <code>/etc/fstab</code> and the single-tree layout are core <b>Linux</b> fundamentals, straight out of <b>CompTIA Linux+</b>. The "OS disk plus data disks" split is how storage works on cloud VMs. And editing a config file like fstab by hand is the everyday reality of Linux and cloud administration, so this section punches above its weight for learning.</div>
+
+<div class="recap"><span class="lbl">Recap</span>
+<ul><li>SSD holds the system; the big NAS drive holds bulk media. Different jobs, different drives.</li>
+<li>A raw drive needs a <b>filesystem</b> (ext4) before it can store files; <b>formatting</b> writes that structure.</li>
+<li>Linux <b>mounts</b> drives into one folder tree; <b>fstab</b> makes it happen automatically at boot.</li>
+<li>A <b>bind mount</b> shares one host folder into an isolated container; unprivileged containers may need a permissions tweak.</li></ul></div>
+
+<div class="quiz"><span class="lbl">Check yourself</span>
+<p class="q">Q1. Why use the SSD for the system but the hard drive for media?</p>
+<p class="a">The SSD is fast but small, ideal for the OS and apps doing many small reads/writes; the hard drive is big and cheap per terabyte, ideal for bulk media read in steady streams, which doesn't need SSD speed.</p>
+<p class="q">Q2. What does "formatting" a new drive actually do?</p>
+<p class="a">It writes a filesystem (like ext4) onto the raw disk: the structure that lets the system store and find files. Until then the drive can't hold anything.</p>
+<p class="q">Q3. The Jellyfin container can't see the drive even though the host can. Why, and what opens it up?</p>
+<p class="a">Containers are isolated from the host by design, so they can't see host drives automatically. A bind mount shares a specific host folder (here /mnt/media) into the container (as /media).</p></div>
+
+<!-- ===================== JELLYFIN ===================== -->
+<h2 id="jellyfin"><span class="n">8.</span>Jellyfin: watching your media (clients, servers, ports and transcoding)</h2>
+<p>You've built a container once, so this reinforces it, then teaches the client/server model and what "transcoding" really means. Nothing here affects the household.</p>
+<ol class="steps">
+  <li>Create a second container the same way (or, since it's fiddlier to wire up the media drive and graphics, use the <b>community-scripts.org Jellyfin</b> helper and choose to enable hardware acceleration). Either way you'll get a Jellyfin address ending <code>:8096</code>.
+    <div class="why"><b>Why a helper is fine here:</b> Jellyfin plus graphics passthrough is exactly the "fiddly, low-learning" bit where a script earns its keep. You already learned container-building by hand with Pi-hole earlier; nothing lost.</div>
+  </li>
+  <li>Open the <code>:8096</code> address, create your admin account, and point Jellyfin at your media drive: set the library folder to <code>/media</code> (the drive you prepared in the previous section).</li>
+  <li>Install the free <b>Jellyfin</b> app on a TV/phone, enter the server address, sign in, press play.</li>
+</ol>
+
+<div class="box learn"><span class="lbl">Understand this: the client/server model, and transcoding</span>
+Jellyfin shows you the pattern behind almost all software you use. The <b>server</b> (on your box, port 8096) holds the data and does the work; the <b>client</b> (the app on your TV) requests it. Your web browser and websites, your email app and mail servers, all work this way.
+<br><br><b>Transcoding</b> is converting video from one format or quality to another on the fly, because your phone on 4G can't handle the same huge file your TV can. Doing that maths on the main processor (CPU) is slow and heavy. <b>Quick Sync</b> is a dedicated video-processing circuit built into the Intel chip's graphics that does it far more efficiently. Choosing to offload work to specialised hardware instead of the general CPU is a real architecture decision you'll see again (it's also why AI uses GPUs).</div>
+
+<div class="box map"><span class="lbl">You'll meet this again</span>
+Client/server, ports and services are foundational to <b>everything</b>, and "hardware acceleration / offloading" connects straight to why cloud providers rent GPU instances. When AZ-900 lists Azure's specialised compute options, you'll recognise the same idea you used for Jellyfin.</div>
+
+<div class="recap"><span class="lbl">Recap</span>
+<ul><li>Software is mostly <b>client/server</b>: a server provides, a client consumes, over a port.</li>
+<li><b>Transcoding</b> reshapes video on the fly; <b>Quick Sync</b> offloads it to purpose-built hardware.</li></ul></div>
+
+<div class="quiz"><span class="lbl">Check yourself</span>
+<p class="q">Q1. In the client/server model, which side is the Jellyfin app on your phone, and which side is on your OptiPlex?</p>
+<p class="a">The phone app is the client (requests and plays); the OptiPlex runs the server (stores the media and serves it).</p>
+<p class="q">Q2. Why is hardware transcoding (Quick Sync) better than making the CPU do it?</p>
+<p class="a">Quick Sync is dedicated video hardware that does the conversion far more efficiently, freeing the CPU and letting more people stream at once.</p></div>
+
+<h3>A nicer way to watch: the Fladder app</h3>
+<div class="box plain"><span class="lbl">What this actually is</span>
+Jellyfin already has its own apps and its own web page. Fladder is simply a different app, built by a different team, that talks to the exact same Jellyfin server underneath. Nothing about your library, your accounts, or your files changes by adding it, it's a different front door onto the same building, not a new building.</div>
+<p>It can be added as its own small container using the same community-scripts pattern as before, run from the Proxmox host:</p>
+<span class="cmd">bash -c "$(curl -fsSL https://raw.githubusercontent.com/community-scripts/ProxmoxVE/main/ct/fladder.sh)"</span>
+<p>Accept the defaults, open the address it gives you, and point it at your existing Jellyfin server and account. Worth trying for two genuinely useful things the standard Jellyfin apps don't do as well: real offline downloads (so a film keeps playing with no connection at all, useful on a journey), and automatic skipping of intros and credits. It's optional polish, not a required piece, so it's fine to skip for now and come back to it.</p>
+
+<!-- ===================== REMOTE ===================== -->
+<div class="partbar">Part 3 · Reach it anywhere, and make it self-sufficient</div>
+<h2 id="remote"><span class="n">9.</span>Remote access: the whole of home networking, and security</h2>
+<p>Reaching your server from outside is where the whole of home networking finally clicks. We'll do it the way that actually sticks: get the picture in plain terms first, then put the proper names to each piece once it makes sense.</p>
+
+<h3>The picture, in plain terms</h3>
+<p>When you're out of the house, you want your phone to reach your stuff at home. Picture your setup as an apartment building on a street:</p>
+<ul>
+  <li>Your one physical machine is the <b>building</b>.</li>
+  <li>Jellyfin and Pi-hole are <b>flats</b> inside it. Here's the bit that trips people up: even though they share the one machine, each flat has its <b>own address</b> on the street (that's what a container is, its own little computer with its own number).</li>
+  <li>The base system that runs the whole box is the <b>front desk</b>.</li>
+  <li>A <b>badge</b> is a pass that lets a device into a private, invite-only tunnel. Only your <b>phone</b> and the <b>front desk</b> have one.</li>
+</ul>
+<p>So when you're away: your phone (with its badge) travels down a private tunnel to the front desk. The front desk can knock on any flat's door because they're all in the same building, so it <b>passes you through</b> to Jellyfin or Pi-hole, even though those flats have no badge of their own. That "make the front desk pass me through to the flats" bit is the one step people find confusing, and it really is all it is.</p>
+
+<p>But how does that private tunnel actually get made, without ever opening the front door? Through a <b>switchboard</b> (a matchmaker). Both your phone and your home keep a line dialled <em>out</em> to the switchboard at all times, and dialling out is always allowed. When you want in, the switchboard checks that both are on your guest list, introduces them, and a private tunnel forms straight between the two. Because both sides reached <em>outward</em> first, the main front door never has to open at all. That last point is the whole reason it is safe.</p>
+
+<figure class="figwrap"><svg id="dg3" width="1080" height="690" viewBox="0 0 1080 690" xmlns="http://www.w3.org/2000/svg" style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;display:block">
+  <style>
+    #dg3 .t{font-size:23px;font-weight:800;fill:#163a2c}
+    #dg3 .s{font-size:14px;fill:#5b6672}
+    #dg3 .lbl{font-size:15px;font-weight:700;fill:#1b242d}
+    #dg3 .lbl2{font-size:12.5px;fill:#5b6672}
+    #dg3 .green{font-size:13px;font-weight:700;fill:#2f7d5c}
+    #dg3 .svc{font-size:14px;font-weight:700;fill:#2b5c8a}
+    #dg3 .home{font-size:15px;font-weight:800;fill:#ffffff;letter-spacing:1px}
+    #dg3 .sw{font-size:16px;font-weight:800;fill:#2f7d5c;letter-spacing:.5px}
+    #dg3 .stepn{font-size:15px;font-weight:800;fill:#ffffff}
+    #dg3 .cap{font-size:14.5px;fill:#1b242d}
+  </style>
+  <rect x="0" y="0" width="1080" height="690" fill="#ffffff"/>
+  <text x="40" y="40" class="t">How the private tunnel gets made</text>
+  <text x="40" y="63" class="s">and why it never has to open your main front door</text>
+
+  <!-- SWITCHBOARD -->
+  <rect x="438" y="86" width="210" height="78" rx="12" fill="#e9f4ee" stroke="#2f7d5c" stroke-width="2.5"/>
+  <text x="543" y="120" text-anchor="middle" class="sw">SWITCHBOARD</text>
+  <text x="543" y="142" text-anchor="middle" class="lbl2">Tailscale's matchmaker</text>
+
+  <!-- dial-out arrows (step 1): phone -> switchboard, home -> switchboard -->
+  <path d="M175 372 L455 168" fill="none" stroke="#8aa0b2" stroke-width="2.2" stroke-dasharray="6 5"/>
+  <polygon points="455,168 462,181 447,180" fill="#8aa0b2"/>
+  <path d="M805 372 L631 168" fill="none" stroke="#8aa0b2" stroke-width="2.2" stroke-dasharray="6 5"/>
+  <polygon points="631,168 639,180 624,181" fill="#8aa0b2"/>
+
+  <!-- step 1 markers -->
+  <circle cx="300" cy="276" r="14" fill="#2f7d5c"/><text x="300" y="281" text-anchor="middle" class="stepn">1</text>
+  <circle cx="726" cy="276" r="14" fill="#2f7d5c"/><text x="726" y="281" text-anchor="middle" class="stepn">1</text>
+
+  <!-- step 2 marker on switchboard -->
+  <circle cx="543" cy="190" r="14" fill="#2f7d5c"/><text x="543" y="195" text-anchor="middle" class="stepn">2</text>
+
+  <!-- PHONE -->
+  <rect x="86" y="366" width="90" height="162" rx="14" fill="#ffffff" stroke="#1b242d" stroke-width="2.5"/>
+  <rect x="96" y="386" width="70" height="116" rx="4" fill="#eef4f8"/>
+  <path d="M124 424 L124 456 L150 440 Z" fill="#2f7d5c"/>
+  <circle cx="131" cy="514" r="6" fill="#cdd5dc"/>
+  <circle cx="170" cy="368" r="13" fill="#e6a700" stroke="#ffffff" stroke-width="2.5"/>
+  <path d="M163 368 l5 5 l9 -10" fill="none" stroke="#ffffff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="131" y="548" text-anchor="middle" class="lbl">Your phone</text>
+  <text x="131" y="566" text-anchor="middle" class="lbl2">away from home</text>
+
+  <!-- HOME -->
+  <polygon points="705,298 1035,298 870,244" fill="#2f7d5c"/>
+  <text x="870" y="284" text-anchor="middle" class="home">YOUR HOME</text>
+  <rect x="705" y="298" width="330" height="238" rx="12" fill="#f2faf5" stroke="#2f7d5c" stroke-width="2.5"/>
+
+  <!-- front desk (host) -->
+  <rect x="742" y="356" width="126" height="100" rx="10" fill="#eef6f1" stroke="#2f7d5c" stroke-width="2.5"/>
+  <text x="805" y="398" text-anchor="middle" class="green">Front desk</text>
+  <text x="805" y="418" text-anchor="middle" class="lbl2" style="font-weight:700">the host</text>
+  <circle cx="861" cy="358" r="13" fill="#e6a700" stroke="#ffffff" stroke-width="2.5"/>
+  <path d="M854 358 l5 5 l9 -10" fill="none" stroke="#ffffff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- flats -->
+  <rect x="892" y="356" width="126" height="100" rx="10" fill="#eef4f8" stroke="#2b5c8a" stroke-width="1.8"/>
+  <text x="955" y="392" text-anchor="middle" class="svc">Your flats</text>
+  <text x="955" y="412" text-anchor="middle" class="lbl2">Jellyfin,</text>
+  <text x="955" y="428" text-anchor="middle" class="lbl2">Pi-hole&#8230;</text>
+  <!-- desk -> flats -->
+  <path d="M868 406 l18 0" stroke="#2f7d5c" stroke-width="2.4"/>
+  <polygon points="892,406 880,400 880,412" fill="#2f7d5c"/>
+
+  <!-- main front door (shut, reply-only) low on the wall -->
+  <rect x="705" y="470" width="22" height="58" rx="2" fill="#cfe0d6" stroke="#2f7d5c" stroke-width="1.6"/>
+  <circle cx="722" cy="500" r="2.5" fill="#2f7d5c"/>
+  <text x="700" y="486" text-anchor="end" class="lbl2">main front</text>
+  <text x="700" y="502" text-anchor="end" class="lbl2">door (shut to</text>
+  <text x="700" y="518" text-anchor="end" class="lbl2">strangers)</text>
+
+  <!-- TUNNEL (step 3): phone -> front desk, entering high (separate from front door) -->
+  <path d="M176 452 C 420 452, 520 430, 742 412" fill="none" stroke="#bcd0e6" stroke-width="20" stroke-linecap="round"/>
+  <path d="M186 451 C 420 451, 520 428, 736 410" fill="none" stroke="#2b5c8a" stroke-width="3" stroke-dasharray="2 11" stroke-linecap="round"/>
+  <polygon points="742,412 728,406 730,420" fill="#2b5c8a"/>
+  <circle cx="430" cy="446" r="14" fill="#2b5c8a"/><text x="430" y="451" text-anchor="middle" class="stepn">3</text>
+
+  <!-- captions -->
+  <circle cx="52" cy="600" r="13" fill="#2f7d5c"/><text x="52" y="605" text-anchor="middle" class="stepn" style="font-size:14px">1</text>
+  <text x="74" y="605" class="cap">Both your phone and your home keep a line dialled <tspan font-weight="700">out</tspan> to the switchboard (allowed, because it goes outward).</text>
+  <circle cx="52" cy="622" r="13" fill="#2f7d5c"/><text x="52" y="627" text-anchor="middle" class="stepn" style="font-size:14px">2</text>
+  <text x="74" y="627" class="cap">The switchboard checks they're on your guest list and introduces them (it never carries your actual data).</text>
+  <circle cx="52" cy="651" r="13" fill="#2b5c8a"/><text x="52" y="656" text-anchor="middle" class="stepn" style="font-size:14px">3</text>
+  <text x="74" y="656" class="cap">A private tunnel forms straight between them, and your phone comes in through it, never touching the main front door.</text>
+</svg><figcaption class="figcap">How the tunnel is made: both ends dial out to the switchboard, which introduces them so a private tunnel can form.</figcaption></figure>
+
+<details class="jargon">
+<summary>Click to connect every part of the analogy to its real name and meaning</summary>
+<table class="jmap">
+<tr><th>In the analogy</th><th>The real name</th><th>What it actually is</th></tr>
+<tr><td class="a">The building (one machine)</td><td class="r">Your physical server / the Proxmox host</td><td>The actual computer everything runs on.</td></tr>
+<tr><td class="a">The flats</td><td class="r">Containers (LXC)</td><td>Separate mini-computers on that one machine, each with its own IP address on the network.</td></tr>
+<tr><td class="a">The front desk</td><td class="r">The host running Tailscale</td><td>The base system that can reach every container; it's where Tailscale is installed.</td></tr>
+<tr><td class="a">The badge / ID card</td><td class="r">A cryptographic key</td><td>A secret that proves which device you are, wherever you're connecting from (identity, not location).</td></tr>
+<tr><td class="a">The main front door (opens only for replies)</td><td class="r">NAT + a stateful firewall</td><td>The router shares one public IP and only lets in replies to connections your own devices started; unrequested inbound is dropped.</td></tr>
+<tr><td class="a">Propping that door open</td><td class="r">Port forwarding</td><td>Deliberately exposing a service to the whole internet. It widens your "attack surface", so we never do it.</td></tr>
+<tr><td class="a">The switchboard / matchmaker</td><td class="r">Tailscale's coordination server</td><td>Introduces your devices to each other. It does not carry your actual data.</td></tr>
+<tr><td class="a">Keeping a line dialled out</td><td class="r">A persistent outbound keep-alive</td><td>Each device holds one open outbound link to the coordination server, which is why the whole thing works without opening the front door.</td></tr>
+<tr><td class="a">The guest list</td><td class="r">Your tailnet (and its access rules / ACLs)</td><td>The set of devices you've signed into your account, plus the rules for who may reach whom.</td></tr>
+<tr><td class="a">The underground tunnel</td><td class="r">A VPN tunnel (WireGuard protocol)</td><td>An encrypted private link over the internet only your devices can use. "Trust the device, not the network" is called zero-trust.</td></tr>
+<tr><td class="a">The front desk sending you to a flat</td><td class="r">Subnet routing</td><td>The host forwards your traffic on to the containers' own addresses.</td></tr>
+<tr><td class="a">The "whole street" code</td><td class="r">CIDR notation (e.g. 192.168.1.0/24)</td><td>Shorthand for a block of addresses; here, your entire home network.</td></tr>
+</table>
+</details>
+
+<h3>Why none of this is sitting on the public internet</h3>
+<p>In plain terms: your home is a house with a single front door to the street, and that door only opens <em>outward</em>. Your devices can start conversations going out, but the street can't wander in uninvited. Putting servers inside the house doesn't unlock that door.</p>
+<div class="box learn"><span class="lbl">The names: NAT and a stateful firewall</span>
+Your whole home shares <b>one public IP address</b> from your provider; inside, each device has a <b>private IP</b>. The router does <b>NAT</b> (Network Address Translation), letting many private devices share that one public address for outbound traffic, and it runs a <b>stateful firewall</b> that only lets back in the replies to conversations your devices started. Anything inbound that nobody asked for is dropped. That's the "door only opens outward", said properly, and it's why your server isn't reachable from outside by default. Not luck, just how these work.</div>
+
+<div class="box undo"><span class="lbl">The one thing never to do (and its name)</span>
+Online you'll be told to switch on <b>port forwarding</b> to reach your server. In plain terms, that props your front door open to the entire street. In proper terms, it exposes a service straight to the whole internet, where bots constantly scan for exactly that, and it widens your <b>attack surface</b> (a real security term). We never do it. Tailscale gets you in without ever opening the door.</div>
+
+<h3>Set it up <span class="tag hand">good command-line practice</span></h3>
+<ol class="steps">
+  <li>Make a free account at <code>tailscale.com</code> (sign in with an existing Google/Microsoft login). <div class="why"><b>Plain version:</b> this creates the "club" that only your own badged devices are allowed to join.</div></li>
+  <li>In the Proxmox Shell, install and start Tailscale on the <b>host</b> (the front desk) with its official commands:
+    <span class="cmd">curl -fsSL https://tailscale.com/install.sh | sh
+tailscale up</span>
+    <div class="why"><b>Reading the commands:</b> same pattern as Pi-hole, <code>curl</code> fetches the official installer and pipes it into a shell to run. <code>tailscale up</code> links this machine to your account. It prints a link; open it on your laptop to approve. This is you giving the front desk its badge.</div>
+  </li>
+  <li>Now make the front desk a doorway to the whole home (find your range from the host's IP: <code>192.168.1.50</code> gives <code>192.168.1.0/24</code>):
+    <span class="cmd">tailscale up --advertise-routes=192.168.1.0/24 --accept-dns=false</span>
+    then approve that route once in the admin page at <code>login.tailscale.com</code>.
+    <div class="why"><b>This is the "pass me through to the flats" step from the diagram.</b> <code>--advertise-routes=192.168.1.0/24</code> hands the front desk the whole home "street" to forward you onto, and the approval click is just you confirming you're happy for it to. That's all the scary-looking line does.</div>
+  </li>
+  <li>Install the <b>Tailscale</b> app on your phone, sign into the same account, toggle it on. Turn wifi off (mobile data) and open Jellyfin at its home <code>:8096</code> address.
+    <div class="see">You'll see: it plays over mobile data, through the private tunnel, nothing exposed to the public. Lose a phone? Remove it in the admin page and it instantly loses all access.</div>
+  </li>
+</ol>
+
+<div class="box map"><span class="lbl">You'll meet this again</span>
+This one section covers <b>NAT</b>, <b>firewalls</b>, <b>public/private IPs</b>, <b>VPNs</b>, <b>CIDR subnets</b> and <b>zero-trust</b>. That's a serious chunk of <b>Network+</b> and <b>Security+</b>, and the networking concepts in <b>AZ-900/AZ-104</b> (VNets, Network Security Groups, VPN Gateway) are the same ideas at cloud scale. You'll walk into that material already fluent.</div>
+
+<div class="recap"><span class="lbl">Recap</span>
+<ul><li><b>NAT + a stateful firewall</b> are why your server isn't public by default; inbound uninvited traffic is dropped.</li>
+<li><b>Port forwarding</b> deliberately exposes a service and widens your attack surface; we avoid it.</li>
+<li>A <b>VPN</b> (Tailscale/WireGuard) gives safe remote access via an invite-only encrypted overlay: <b>zero-trust</b>.</li>
+<li><b>CIDR</b> like <code>/24</code> describes a block of addresses; the same notation runs cloud networks.</li></ul></div>
+
+<div class="quiz"><span class="lbl">Check yourself</span>
+<p class="q">Q1. Your server has never had port forwarding set up. Explain to a mate why a hacker on the internet can't just connect to it.</p>
+<p class="a">The router uses NAT and a stateful firewall: it only lets in replies to connections your own devices started. Unsolicited inbound traffic from the internet is dropped, so the server isn't reachable from outside.</p>
+<p class="q">Q2. Why is a VPN like Tailscale safer than port forwarding for remote access?</p>
+<p class="a">Port forwarding exposes a service to the entire internet. A VPN creates an encrypted, invite-only tunnel that only your own devices can join, so nothing is publicly reachable.</p>
+<p class="q">Q3. Jellyfin and Pi-hole run on the same machine as the host, so why does the host still have to "forward" your phone to them?</p><p class="a">Because each container has its own address on the network, and only the host has Tailscale. Your phone reaches the host through the tunnel, and the host passes it on to those containers by their own addresses. That forwarding is subnet routing.</p><p class="q">Q4. What does <code>/24</code> mean in <code>192.168.1.0/24</code>?</p>
+<p class="a">CIDR notation for a block of 256 addresses (192.168.1.0–.255), where the first 24 bits are the fixed network portion.</p></div>
+
+<!-- ===================== AUTOMATE ===================== -->
+<h2 id="automate"><span class="n">10.</span>Automating your media library: Sonarr, Radarr and a VPN</h2>
+<p>Up to now, getting a new film or show into Jellyfin has meant copying the file across by hand. This section removes that chore: you set up two organisers that file new content into the right place automatically, decide on a tidy folder structure, and, for the part that reaches out to the internet, route it safely through a VPN. This is what turns the build from "a media player I feed manually" into "a library that keeps itself current."</p>
+
+<h3>Letting new content organise itself: Sonarr and Radarr</h3>
+<div class="box learn"><span class="lbl">Understand this: what these two actually do, and what they don't</span>
+Jellyfin only ever plays what's already sitting on your NAS drive. <b>Sonarr</b> (for TV shows) and <b>Radarr</b> (for films) are separate little organisers whose only job is to watch a folder, rename and sort whatever lands in it properly, and tell Jellyfin the second something new appears, so it shows up without you manually copying files across each time. On their own, straight out of the box, neither one knows how to find or fetch anything at all. That's a distinct, separate piece, covered honestly below.</div>
+
+<div class="box learn"><span class="lbl">Understand this: why anime gets its own folder</span>
+Sonarr and Radarr don't care what you name folders, but a three-way split, anime, tv, and movies, genuinely earns its keep here rather than just two. Anime is frequently numbered differently to Western TV, often one continuous episode count running across the whole show rather than resetting each season, called <b>absolute numbering</b>. Keeping it in its own folder makes that easy to handle correctly, and keeps Jellyfin's browsing clean too, rather than one long mixed list of everything. You don't need a third app for this though, one Sonarr can manage both anime and regular TV, just pointed at two different folders and with each show individually marked with the right type.</div>
+
+<p>Decide where organised content will live, as three subfolders of your existing NAS mount, run from the Proxmox host:</p>
+<span class="cmd">mkdir -p /mnt/media/anime
+mkdir -p /mnt/media/tv
+mkdir -p /mnt/media/movies</span>
+
+<p>Create the two apps as their own containers, same community-scripts pattern used for Jellyfin and Fladder, run from the Proxmox host:</p>
+<span class="cmd">bash -c "$(curl -fsSL https://raw.githubusercontent.com/community-scripts/ProxmoxVE/main/ct/sonarr.sh)"
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/community-scripts/ProxmoxVE/main/ct/radarr.sh)"</span>
+<div class="why"><b>Privileged or not:</b> to sidestep the same permissions mismatch covered in the storage section, where an unprivileged container's internal "root" isn't recognised by the host, it's simplest to create both as privileged here too.</div>
+
+<p>Bind mount your NAS folder into each one, exactly the same trick used for Jellyfin, run from the host:</p>
+<span class="cmd">pct set &lt;sonarr-id&gt; -mp0 /mnt/media,mp=/media
+pct set &lt;radarr-id&gt; -mp0 /mnt/media,mp=/media</span>
+
+<p>Open Sonarr's own web address, go to <b>Settings → Media Management → Root Folders</b>, and add both <code>/media/anime</code> and <code>/media/tv</code> as two separate root folders, rather than just the one. Then, whenever you add a new show, Sonarr lets you choose which of the two root folders it goes into right there on the add screen, and also lets you set its <b>Series Type</b> to <code>Anime</code> or <code>Standard</code> for that title, which is what actually fixes the episode numbering behaviour, the folder alone doesn't do that automatically. Open Radarr's address and point its single root folder at <code>/media/movies</code> as before, since films don't have this same numbering quirk.</p>
+
+<div class="box why"><span class="lbl">Matching this in Jellyfin</span>
+Worth setting up three separate libraries in Jellyfin too, rather than one that covers everything, Anime, TV Shows, and Movies, each pointed at its matching folder (<code>/media/anime</code>, <code>/media/tv</code>, <code>/media/movies</code>) and each set to the correct content type when you create it. This is what gives anime its own clean row on the home screen instead of being buried alphabetically among everything else, and it also helps Jellyfin fetch the right kind of metadata (episode thumbnails, correct show artwork) for each.</div>
+
+<p>One nice connecting step: in Jellyfin's Dashboard, under <b>API Keys</b>, generate a new key. Then in both Sonarr's and Radarr's own Settings, under <b>Connect</b>, add a new connection of type Jellyfin/Emby using your server's address and that key. This means Jellyfin refreshes its library the moment either one adds a file, rather than waiting for its next scheduled scan.</p>
+
+<div class="box safe"><span class="lbl">Where this guide deliberately stops</span>
+The very next screens in both apps, <b>Settings → Indexers</b> and <b>Settings → Download Clients</b>, are where you'd decide where content is actually searched for and fetched from. That decision, and everything about sourcing content responsibly and legally, is left entirely to you to research and set up in your own way. Everything covered above stands on its own regardless of what you choose there, so there's nothing to undo either way.</div>
+
+<div class="quiz"><span class="lbl">Check yourself</span>
+<p class="q">Q1. What can Sonarr and Radarr do straight out of the box, and what can't they do until something else is added?</p>
+<p class="a">Out of the box they can organise, rename and file content that already exists in a watched folder, and tell Jellyfin to refresh. They cannot find or fetch new content until an indexer and a download client are configured, deliberately left out of this guide for you to research yourself.</p>
+<p class="q">Q2. Why does anime get its own folder and its own Series Type rather than sitting with regular TV?</p>
+<p class="a">Anime often uses continuous "absolute" episode numbering across a whole show rather than resetting per season. Its own folder plus setting the Series Type to Anime is what makes Sonarr number and file it correctly, and it keeps Jellyfin's browsing tidy.</p></div>
+
+<h3>Routing downloads through a VPN, properly, with a kill switch</h3>
+<p>Whatever download client ends up running on your server, if it ever talks to other people's devices directly rather than one central server, meaning a peer-to-peer connection, every one of those other devices can see the IP address it's connecting from. Many people running a setup like this route that specific container's traffic through a VPN for exactly that reason, and if you already have an account with a VPN provider that supports the WireGuard protocol (AirVPN is one of many that do), here's how to set it up properly, meaning with a genuine <b>kill switch</b>: if the VPN tunnel ever drops, the container loses its connection to the internet entirely, rather than quietly falling back to its normal, visible connection without you noticing.</p>
+
+<div class="box learn"><span class="lbl">Understand this: why a kill switch is the whole point</span>
+A VPN on its own just adds a private tunnel alongside the normal connection, it doesn't remove the normal one. If the tunnel drops for a few seconds, an ordinary setup happily carries on using the regular connection instead, invisibly, which defeats the reason you set the VPN up in the first place. A kill switch, in plain terms, means deliberately locking the normal front door of that one container so it physically cannot be used at all, leaving the tunnel as the only way in or out. If the tunnel goes down, that container simply has no internet, full stop, rather than an unnoticed leak.</div>
+
+<h4>Step A, get your configuration file</h4>
+<p>Log into your VPN provider's own website (for AirVPN, this is their "Config Generator" in the client area), generate a <b>WireGuard</b> configuration for a server of your choosing, and download the resulting <code>.conf</code> file. Note the <code>Endpoint</code> line inside it, an address and port number, you'll need that exact value again in Step C.</p>
+
+<h4>Step B, install and start the tunnel</h4>
+<p>On whichever container will run your download client, install WireGuard's tools:</p>
+<span class="cmd">apt update
+apt install wireguard -y</span>
+<p>Copy your downloaded config file onto that container as <code>/etc/wireguard/airvpn.conf</code> (WinSCP works fine for this, same as copying any other file across). Then bring the tunnel up:</p>
+<span class="cmd">wg-quick up airvpn</span>
+<p>And set it to start automatically on every future boot, rather than needing to be started by hand each time:</p>
+<span class="cmd">systemctl enable wg-quick@airvpn</span>
+<div class="see">You'll see: running <code>wg show</code> lists the tunnel as active, with a "latest handshake" timestamp confirming it's actually talking to the VPN server, not just sitting there unconnected.</div>
+
+<h4>Step C, the kill switch itself</h4>
+<div class="box learn"><span class="lbl">Understand this: what these rules actually say</span>
+<code>iptables</code> is Linux's own built-in gatekeeper for network traffic, sitting in front of every connection in or out. The rules below say, in order: allow the container to talk to itself (needed for it to function at all), allow replies to conversations it already started, allow it to freely use the VPN tunnel interface (<code>wg0</code>), allow the one specific connection needed to actually reach the VPN server and keep the tunnel alive, then block absolutely everything else outbound by default. That last part is the actual kill switch, everything not explicitly allowed above it simply doesn't go anywhere.</div>
+<p>Install a tool to make these rules survive a reboot, then apply the ruleset (replace <code>VPN_SERVER_IP</code> and <code>VPN_SERVER_PORT</code> with the exact values from your config file's <code>Endpoint</code> line):</p>
+<span class="cmd">apt install iptables-persistent -y
+
+iptables -F
+iptables -P OUTPUT DROP
+iptables -P INPUT DROP
+iptables -P FORWARD DROP
+iptables -A OUTPUT -o lo -j ACCEPT
+iptables -A INPUT -i lo -j ACCEPT
+iptables -A OUTPUT -m state --state ESTABLISHED,RELATED -j ACCEPT
+iptables -A INPUT -m state --state ESTABLISHED,RELATED -j ACCEPT
+iptables -A OUTPUT -o wg0 -j ACCEPT
+iptables -A OUTPUT -p udp -d VPN_SERVER_IP --dport VPN_SERVER_PORT -j ACCEPT
+
+netfilter-persistent save</span>
+<div class="why"><b>Why that one extra UDP line matters:</b> the tunnel itself is built on a plain outbound connection to the VPN server before anything is encrypted inside it. Without explicitly allowing that one specific address and port, the tunnel could never establish itself in the first place, since the strict block-everything-else rule above it would catch that too.</div>
+
+<h4>Step D, prove it's actually working</h4>
+<ol class="steps">
+  <li>With the tunnel up, run <code>curl ifconfig.me</code> inside the container.
+    <div class="see">You'll see: an IP address belonging to your VPN provider, not your home address. That's the tunnel working.</div>
+  </li>
+  <li>Now deliberately break it to test the kill switch: <code>wg-quick down airvpn</code>, then try <code>curl ifconfig.me</code> again.
+    <div class="see">You'll see: it should hang and fail completely, not quietly succeed with your home IP instead. That failure is the proof the kill switch is doing its job.</div>
+  </li>
+  <li>Bring the tunnel back up once you've confirmed this (<code>wg-quick up airvpn</code>), and you're done, this container now only ever reaches the internet through the VPN.</li>
+</ol>
+
+<div class="box undo"><span class="lbl">If you need to undo this entirely</span>
+To remove the kill switch and go back to normal: <code>iptables -F</code> clears every rule you just added, then <code>iptables -P OUTPUT ACCEPT</code> and <code>iptables -P INPUT ACCEPT</code> restore the default "allow everything" behaviour, then <code>netfilter-persistent save</code> makes that the new permanent state. <code>wg-quick down airvpn</code> separately stops the tunnel itself if you want it off too.</div>
+
+<div class="recap"><span class="lbl">Recap</span>
+<ul><li>A VPN alone adds a private tunnel but leaves the normal connection as a fallback; a <b>kill switch</b> removes that fallback entirely.</li>
+<li><code>iptables</code> is Linux's built-in traffic gatekeeper; blocking everything by default except the tunnel and the one connection needed to reach the VPN server is what makes the switch real.</li>
+<li>Always prove it by deliberately dropping the tunnel and confirming the container goes fully offline rather than silently reverting to its normal connection.</li></ul></div>
+
+<div class="quiz"><span class="lbl">Check yourself</span>
+<p class="q">Q1. Why isn't just having a VPN connection enough on its own?</p>
+<p class="a">A VPN adds a tunnel alongside the normal connection without removing it, so if the tunnel drops, traffic can quietly fall back to the normal, visible connection. A kill switch blocks that fallback so nothing gets out if the tunnel isn't up.</p>
+<p class="q">Q2. Why does the ruleset need one specific allowed exception straight to the VPN server's own address and port, on top of the tunnel interface itself?</p>
+<p class="a">The tunnel is built on top of an ordinary outbound connection to the VPN server first. Without allowing that one specific connection, the strict "block everything else" rule would prevent the tunnel from ever being established at all.</p></div>
+
+<!-- ===================== DASHBOARD ===================== -->
+<h2 id="dashboard"><span class="n">11.</span>One front door for the family: a dashboard and a memorable address</h2>
+<p>Right now, reaching anything means knowing its exact IP address and port, which is fine for you but not realistic for the rest of the household. This section fixes that with two small pieces working together: a dashboard that turns every service into a single clickable tile, and one memorable address for the whole family to type instead of any of them.</p>
+
+<div class="box learn"><span class="lbl">Understand this: the two separate jobs being solved here</span>
+A <b>dashboard</b> solves "where do I click", one page with an icon per service, so nobody needs to remember or even see an IP or port, they just tap Jellyfin and land in Jellyfin. A memorable <b>local DNS name</b> solves "what do I type to get there in the first place", one easy word instead of a string of numbers. Together they mean a family member only ever needs to know one thing.</div>
+
+<h3>Step A, the dashboard itself</h3>
+<p>Create it the same way as everything else, run from the Proxmox host:</p>
+<span class="cmd">bash -c "$(curl -fsSL https://raw.githubusercontent.com/community-scripts/ProxmoxVE/main/ct/homarr.sh)"</span>
+<p>Defaults: 2 cores, 2GB memory, 8GB disk, reached at <code>&lt;its-ip&gt;:7575</code>. Unlike Sonarr or Radarr, this one is entirely configured through its own web page rather than any config file, open it, and for each service, add a tile, give it a name and icon, and paste in its address (for example <code>http://192.168.1.97/admin</code> for Pi-hole). Drag them into whatever layout makes sense. Once it's up and working, set a DHCP reservation for it in your router, same habit as every other container.</p>
+
+<h3>Step B, one name for the whole house</h3>
+<div class="box learn"><span class="lbl">Understand this: why Pi-hole is the right tool for this too</span>
+Pi-hole is already the phone book the whole house uses to look up names. Adding your own entry to that phone book is exactly the same idea as it looking up <code>bbc.co.uk</code>, except this entry only exists inside your own house, nobody on the outside internet has ever heard of it, and it can point at whatever you like.</div>
+<ol class="steps">
+  <li>In Pi-hole's admin page, go to <b>Local DNS</b>, then <b>DNS Records</b>.</li>
+  <li>Add a new record: in the domain field enter <code>home.lan</code>, and in the IP field enter Homarr's address. Click <b>Add</b>.
+    <div class="why"><b>Why the <code>.lan</code> ending matters:</b> browsers tend to treat a single bare word typed into the address bar as a search rather than a web address. Giving it a dot, like a normal-looking web address, makes browsers treat it properly as somewhere to go rather than something to search for.</div>
+  </li>
+  <li>On any device already using Pi-hole for DNS, either your whole house after the earlier rollout, open a browser and go to <code>http://home.lan</code>.
+    <div class="see">You'll see: Homarr's dashboard loads, the same as typing its IP directly, except now everyone in the house just needs to remember one easy word.</div>
+  </li>
+</ol>
+
+<div class="box map"><span class="lbl">You'll meet this again</span>
+This is a small taste of what <b>internal DNS</b> and <b>service discovery</b> do inside real organisations at a much larger scale, giving humans and other systems memorable names instead of ever typing raw addresses. It's also the seed of what a <b>reverse proxy</b> does one step further, a separate, slightly more involved piece that would let you drop the port number too, so <code>jellyfin.lan</code> alone works with nothing after it. Worth knowing exists, not needed right now.</div>
+
+<div class="recap"><span class="lbl">Recap</span>
+<ul><li>A <b>dashboard</b> (Homarr) turns every service into one clickable tile, hiding IPs and ports from whoever's using it.</li>
+<li>A <b>local DNS record</b> in Pi-hole gives the whole house one memorable name instead of an address, using a dotted name like <code>home.lan</code> so browsers treat it correctly.</li>
+<li>A <b>reverse proxy</b> is the next step up from this, dropping port numbers too, but isn't needed to get real day-to-day value here.</li></ul></div>
+
+<div class="quiz"><span class="lbl">Check yourself</span>
+<p class="q">Q1. What two separate problems do the dashboard and the local DNS record each solve?</p>
+<p class="a">The dashboard solves "where do I click", giving one page with a tile per service so nobody needs to know an address. The local DNS record solves "what do I type", giving one memorable name instead of an IP address.</p>
+<p class="q">Q2. Why does <code>home.lan</code> work more reliably typed into a browser than just <code>home</code> on its own?</p>
+<p class="a">A single bare word tends to get treated as a search term by the browser rather than an address. A dotted name looks like a normal web address, so the browser sends it to Pi-hole to resolve instead of searching for it.</p></div>
+
+<!-- ===================== OPS ===================== -->
+<div class="partbar">Part 4 · Keep it running, and where to take it next</div>
+<h2 id="ops"><span class="n">12.</span>Ops discipline: the habits that separate hobbyists from pros</h2>
+<p>You now have a real, working system that the household relies on. These are the habits that keep it healthy, and they're the same disciplines that separate a hobbyist from someone doing this professionally. Build them in now, before you go adding more.</p>
+<div class="box learn"><span class="lbl">Understand this: a snapshot is not a backup</span>
+A <b>snapshot</b> saves a container's state <em>on the same disk</em>: brilliant for "undo my change", useless if the disk itself dies. A <b>backup</b> is a separate copy kept elsewhere. Pros follow the <b>3-2-1 rule</b>: 3 copies of important data, on 2 different media, with 1 kept off-site. Even a mirror of two drives isn't a backup, because deleting a file deletes it on both. This distinction is a genuine exam and interview topic.</div>
+<ul>
+  <li><b>Snapshot before every change</b> (container → Snapshots → Take Snapshot). Ten-second undo.</li>
+  <li><b>Document everything</b> in your notes file: IPs, ports, passwords, what each container does. Ops teams live and die by good documentation.</li>
+  <li><b>Update monthly:</b> snapshot, then <code>apt update &amp;&amp; apt upgrade</code>, then check things still work. Patching is basic security hygiene.</li>
+  <li><b>Least privilege:</b> don't run things as root when you don't need to, and prefer "unprivileged" containers. Giving software only the access it needs is a core security principle.</li>
+  <li><b>Nothing is exposed</b> unless you deliberately port-forward, which we never do.</li>
+</ul>
+<div class="recap"><span class="lbl">Recap</span>
+<ul><li>Snapshots undo changes; <b>backups (3-2-1)</b> survive disasters. They're different.</li>
+<li>Documentation, regular patching, and least privilege are the everyday disciplines of real operations and security work.</li></ul></div>
+
+<!-- ===================== ROADMAP ===================== -->
+<h2 id="roadmap"><span class="n">13.</span>The roadmap: the other apps worth adding</h2>
+<p>The rest of what was floated early on, each its own separate container, none set up yet. Every one of these follows the exact pattern you already know by heart: run the install command from the Proxmox host, accept the defaults, open the address it gives you, set a reserved address in your router once it's working. What's below is enough to actually start each one, not just a name and a sentence.</p>
+
+<h4>Immich, family photo backup</h4>
+<div class="box plain"><span class="lbl">What it does</span>Every phone in the house backs up its photos here automatically, in the background, the same everyday behaviour as Google Photos or iCloud, except the actual copies live on your own NAS drive rather than a company's servers.</div>
+<span class="cmd">bash -c "$(curl -fsSL https://raw.githubusercontent.com/community-scripts/ProxmoxVE/main/ct/immich.sh)"</span>
+<p>Defaults: 4 cores, 6GB memory, 20GB disk, reached at <code>&lt;its-ip&gt;:2283</code>. One thing worth knowing before you start it: the very first install compiles several components from scratch, which can take anywhere from about 15 minutes to a couple of hours depending on how busy the machine is, that's normal and not a hang. Once it's up, create an admin account on first visit, then install the Immich app on each family member's phone and point it at that address to start backing up automatically. Its own photo storage lives on the container's small disk by default, so before everyone starts uploading in earnest, this is one worth bind mounting to your NAS drive the same way Jellyfin's media folder was, so photos land on the big drive rather than filling up a 20GB container disk.</p>
+
+<h4>Nextcloud, a shared family drive</h4>
+<div class="box plain"><span class="lbl">What it does</span>A shared space for documents and files the whole family can drop things into and get to from any device, your own version of Google Drive or Dropbox.</div>
+<span class="cmd">bash -c "$(curl -fsSL https://raw.githubusercontent.com/community-scripts/ProxmoxVE/main/ct/nextcloudpi.sh)"</span>
+<p>Defaults: 2 cores, 2GB memory, 8GB disk, reached at <code>https://&lt;its-ip&gt;</code> (it uses HTTPS on port 443 by default, so expect the same self-signed certificate warning you saw with Proxmox itself, safe to click through on your own network). One honest note directly from the project's own documentation: this particular installer pulls its code from outside the main community-scripts repository, so it's worth a quick look at what it's fetching before running it, same "only run things from a source you trust" habit from earlier in this guide. Same as Immich, plan to bind mount your NAS drive in for the actual file storage rather than relying on the small default disk once real use begins.</p>
+
+<h4>Vaultwarden, a shared password manager</h4>
+<div class="box plain"><span class="lbl">What it does</span>One place for the whole family to store logins and passwords securely, using the same free apps as the popular password manager Bitwarden, just pointed at your own server instead of their company's.</div>
+<span class="cmd">bash -c "$(curl -fsSL https://raw.githubusercontent.com/community-scripts/ProxmoxVE/main/ct/vaultwarden.sh)"</span>
+<p>Defaults: 4 cores, 6GB memory, 20GB disk, reached at <code>&lt;its-ip&gt;:8000</code>. On first visit, create your own account, then each family member installs the free Bitwarden app and, instead of using Bitwarden's own servers, points it at your server's address in its settings, then creates their own login there. Nothing this container holds needs to touch your NAS drive, its own small disk is plenty.</p>
+
+<h4>Home Assistant, smart home control</h4>
+<div class="box plain"><span class="lbl">What it does</span>One dashboard for controlling smart plugs, lights, sensors and similar devices, instead of a different app per brand.</div>
+<span class="cmd">bash -c "$(curl -fsSL https://raw.githubusercontent.com/community-scripts/ProxmoxVE/main/ct/homeassistant.sh)"</span>
+<p>Defaults: 2 cores, 2GB memory, 16GB disk, reached at <code>&lt;its-ip&gt;:8123</code>. Worth knowing before you pick this one: this particular install is the leaner "Core" version, meaning it does not support the wider world of optional community add-ons the full Home Assistant OS offers, a reasonable trade for how much simpler it is to run inside a container. Follow its own setup wizard on first visit to create an account and start adding devices.</p>
+
+<h4>Uptime Kuma, a dashboard that watches everything else</h4>
+<div class="box plain"><span class="lbl">What it does</span>A small dashboard that quietly checks whether your other containers are actually up and responding, and tells you the moment one isn't, so you find out from a notification rather than a family member complaining Jellyfin's not working.</div>
+<span class="cmd">bash -c "$(curl -fsSL https://raw.githubusercontent.com/community-scripts/ProxmoxVE/main/ct/uptimekuma.sh)"</span>
+<p>Defaults: 1 core, 1GB memory, 4GB disk, reached at <code>&lt;its-ip&gt;:3001</code>. On first visit, create an account, then add a "monitor" for each container's address (Pi-hole, Jellyfin, and so on), it'll check on them automatically on a schedule and can be set to email or notify you the moment one stops responding.</p>
+
+<h4>Proxmox Backup Server, the real off-site backup</h4>
+<div class="box plain"><span class="lbl">What it does, and why it's different from a snapshot</span>This is the actual "1 copy off-site" piece of the 3-2-1 rule from the ops discipline section. A snapshot lives on the same disk as everything else, so it's no help at all if that disk fails. Proxmox Backup Server keeps proper, separate, restorable backups of your containers.</div>
+<span class="cmd">bash -c "$(curl -fsSL https://raw.githubusercontent.com/community-scripts/ProxmoxVE/main/ct/proxmox-backup-server.sh)"</span>
+<p>Defaults: 2 cores, 2GB memory, 10GB disk, reached at <code>&lt;its-ip&gt;:8007</code>. Being straightforward about a genuine limitation here: running this as a container on the exact same physical machine as everything it's backing up protects you against a corrupted container or a mistake, but not against the machine itself dying entirely, drive failure, theft, fire, since the backups would go down with it. The properly correct setup, whenever you're ready for it, is this same software running on a second, separate physical machine, ideally not even in the same room. Starting it here on the same OptiPlex is still a genuine improvement over snapshots alone, just worth knowing what it doesn't protect against yet.</p>
+
+<p>Every one of these follows the same pattern you already know by heart now: a container, a bind mount if it needs to touch shared storage, a reserved address, and its own login. Nothing about how they get added is fundamentally new territory anymore, that's the real payoff of everything covered so far. Pick them off one at a time whenever you fancy, in any order, snapshotting first out of the habit from the last section.</p>
+
+<div class="recap"><span class="lbl">Recap</span>
+<ul><li>Immich, Nextcloud, Vaultwarden, Home Assistant, Uptime Kuma and Proxmox Backup Server are all optional next containers, each doing one clear job.</li>
+<li>They all install and run the same way as everything you've already built, so none of them is new territory.</li>
+<li>Proxmox Backup Server only becomes a true off-site backup once it lives on a second, separate machine.</li></ul></div>
+
+<!-- ===================== NEXT ===================== -->
+<h2 id="next"><span class="n">14.</span>Where this points your career (and beyond AZ-900)</h2>
+<p>A build like this is also a way to find out what you enjoy. Here's an honest map of where each thing you touched can lead, so you can follow the bits that light you up.</p>
+<div class="box map"><span class="lbl">What you've actually sampled</span>
+<b>Enjoyed the hypervisor and building containers?</b> That's <b>systems administration / virtualization / cloud infrastructure</b> → after AZ-900, look at <b>AZ-104 (Azure Administrator)</b>.<br>
+<b>Enjoyed the networking (DNS, NAT, subnets, Tailscale)?</b> That's <b>networking</b> → <b>CompTIA Network+</b>, then <b>CCNA</b> if it really grabs you.<br>
+<b>Enjoyed the command line and Linux?</b> That's the backbone of <b>DevOps and cloud engineering</b> → <b>CompTIA Linux+</b>, then <b>Docker</b> and <b>Kubernetes</b>.<br>
+<b>Enjoyed the "keep the bad stuff out" thinking?</b> That's <b>security</b> → <b>CompTIA Security+</b>.<br>
+<b>Liked automating the fiddly bits?</b> Pick your <b>Python</b> back up (past OOP this time) and look at <b>infrastructure-as-code</b> (Terraform, Ansible).</div>
+<p>A broad, beginner-friendly cert like AZ-900 is a smart first move: it gives you the shared vocabulary and a map of the territory. A home lab like this is the perfect companion, because you keep going "oh, I did that." Do a cert for the words; keep tinkering here for the hands. Having both is exactly the combination that gets you noticed for the next role.</p>
+
+<!-- ===================== GLOSSARY ===================== -->
+<h2 id="glossary"><span class="n">15.</span>Glossary of every term you'll meet</h2>
+<dl class="gloss">
+  <dt>Fladder</dt><dd>An alternative app for watching your Jellyfin library, built by a different team. Talks to the same server, no changes needed on Jellyfin's side.</dd>
+  <dt>Homarr</dt><dd>A dashboard container that shows every one of your services as a clickable tile, so nobody needs to know an IP address or port to reach anything.</dd>
+  <dt>Local DNS record</dt><dd>A name-to-address entry you add to Pi-hole yourself, only known inside your own house, letting a memorable name like home.lan replace an IP address.</dd>
+  <dt>Reverse proxy</dt><dd>A more advanced piece that drops port numbers too, so a name on its own is enough to reach a service. Not needed for a dashboard and local DNS names to work.</dd>
+  <dt>Sonarr / Radarr</dt><dd>Separate containers that organise, rename and file TV shows and films into your library folder automatically, and tell Jellyfin to refresh. They don't fetch anything on their own until an indexer and download client are added.</dd>
+  <dt>Kill switch</dt><dd>A firewall setup that blocks a container's normal internet connection entirely, leaving a VPN tunnel as the only way in or out, so nothing leaks out if the tunnel drops.</dd>
+  <dt>iptables</dt><dd>Linux's built-in tool for filtering network traffic by rule, used here to build the kill switch.</dd>
+  <dt>Indexer / download client</dt><dd>The two pieces that together decide where content is searched for and how it's actually fetched. Deliberately left out of this guide for you to research and configure yourself.</dd>
+  <dt>Immich / Nextcloud / Vaultwarden / Home Assistant / Uptime Kuma / Proxmox Backup Server</dt><dd>Future containers on the roadmap: private photo backup, a shared drive, a shared password manager, smart home control, a dashboard that watches your other containers, and a proper off-site backup system.</dd>
+  <dt>Hypervisor</dt><dd>Software that runs multiple virtual computers on one physical machine. Proxmox is a Type 1 (bare-metal) one.</dd>
+  <dt>Virtual machine (VM)</dt><dd>A software "computer" that runs its own full operating system on a hypervisor.</dd>
+  <dt>Container / LXC</dt><dd>A lighter isolated environment that shares the host's Linux kernel. Docker and Kubernetes are the industry versions.</dd>
+  <dt>Template / image</dt><dd>A pre-built base OS a container or VM is created from.</dd>
+  <dt>Linux</dt><dd>The open-source operating system running most servers and clouds. Debian is the flavour under Proxmox.</dd>
+  <dt>Shell / terminal / CLI</dt><dd>The text command-line interface for controlling a computer by typing.</dd>
+  <dt>root</dt><dd>The all-powerful administrator account on Linux.</dd>
+  <dt>Package manager / apt / repository</dt><dd>The tool (apt) that installs software from curated online libraries (repositories), handling dependencies.</dd>
+  <dt>IP address</dt><dd>A device's network number. Private ones (192.168.x, 10.x, 172.16-31.x) only work inside your network.</dd>
+  <dt>DNS</dt><dd>The internet's phone book: turns names into IP addresses. Runs on port 53.</dd>
+  <dt>DHCP</dt><dd>The service that automatically hands out IP addresses to devices joining a network.</dd>
+  <dt>Port</dt><dd>A number identifying a specific service on a machine (Proxmox 8006, DNS 53, Jellyfin 8096).</dd>
+  <dt>NAT</dt><dd>Network Address Translation: lets many private devices share one public IP, and blocks uninvited inbound traffic.</dd>
+  <dt>Firewall</dt><dd>Filters network traffic by rules. A stateful one only allows replies to connections you started.</dd>
+  <dt>Port forwarding</dt><dd>Deliberately opening a service to the internet through the firewall. Risky; we avoid it.</dd>
+  <dt>VPN / WireGuard / Tailscale</dt><dd>An encrypted private network over the internet for your own devices. Tailscale uses the WireGuard protocol.</dd>
+  <dt>CIDR (e.g. /24)</dt><dd>Notation for a block of IP addresses; /24 = 256 addresses. Used to define cloud networks too.</dd>
+  <dt>Zero-trust</dt><dd>Security approach: trust no network by default, verify every device. Tailscale is an example.</dd>
+  <dt>Client / server</dt><dd>The server provides a service; the client consumes it. The pattern behind most software.</dd>
+  <dt>Transcoding / Quick Sync</dt><dd>Reshaping video on the fly; Quick Sync is Intel hardware that does it efficiently.</dd>
+  <dt>Snapshot vs backup</dt><dd>A snapshot is an on-disk undo point; a backup is a separate copy elsewhere (see 3-2-1).</dd>
+  <dt>Headless</dt><dd>A machine run with no monitor/keyboard, managed remotely over the network.</dd>
+  <dt>IaaS</dt><dd>Infrastructure as a Service: renting virtual machines/networks from a cloud. An AZ-900 topic you've now built by hand.</dd>
+</dl>
+
+<footer>
+  <p>Your Home Server: The Learning Edition. Take it a section at a time, and try the quizzes honestly before reading the answers. You're not just building a server; you're building the mental model that makes everything after it easier.</p>
+</footer>
+
+</div>
+</body>
+</html>
