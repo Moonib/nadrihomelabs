@@ -722,6 +722,11 @@ mkdir -p /mnt/media/tv
 mkdir -p /mnt/media/movies
 mkdir -p /mnt/media/downloads</span>
 
+<div class="box learn"><span class="lbl">Understand this: hand these folders to the right owner before Sonarr and Radarr touch them</span>
+Folders made with a plain <code>mkdir</code>, like the ones above, end up owned by root, since that's who ran the command. Inside the linuxserver.io images this stack uses (Sonarr, Radarr, qBittorrent), the app itself runs as an internal user called <code>abc</code>, matched to a real Linux user via the <code>PUID=1000</code>/<code>PGID=1000</code> lines you'll see in the compose file further down. That mismatch, root owning the folder, user 1000 trying to write into it, is exactly the same category of problem already met with Samba and Quick Sync earlier in this build, whoever owns a resource doesn't match whoever's trying to use it. Left as it is, Sonarr and Radarr will fail to add <code>/media/anime</code>, <code>/media/tv</code> or <code>/media/movies</code> as root folders later, with an error like "not writable by user 'abc'". Fix it once now, run from the Proxmox host:
+<span class="cmd">chown -R 1000:1000 /mnt/media</span>
+This only changes who owns the files, it doesn't touch anything already inside them, so it's completely safe even with Jellyfin already reading from this same folder. A folder's default permissions let anyone read and look inside regardless of who owns it, only writing is restricted to the owner, and Jellyfin only ever reads your media, never writes to it, so its access is untouched either way.</div>
+
 <p>Bind mount that same NAS folder into the Docker LXC, exactly the same trick used for Jellyfin, run from the Proxmox host:</p>
 <span class="cmd">pct set &lt;docker-id&gt; -mp0 /mnt/media,mp=/media</span>
 
