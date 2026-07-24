@@ -903,6 +903,34 @@ Worth setting up three separate libraries in Jellyfin too, rather than one that 
 
 <p>Finally, open Prowlarr's own address and, under <b>Settings → Apps</b>, add both Sonarr and Radarr. Here you can use their names directly too, <code>sonarr</code> on port <code>8989</code> and <code>radarr</code> on port <code>7878</code>, along with each one's API key (found in that app's own Settings → General). This is what lets Prowlarr push its list of indexers down to both organisers automatically, rather than you configuring the same list twice.</p>
 
+<h3>Routing Prowlarr's own searches through the VPN too</h3>
+<div class="box learn"><span class="lbl">Understand this: Prowlarr gets the same treatment as qBittorrent</span>
+So far, only qBittorrent has no network of its own, borrowing gluetun's entirely. Prowlarr still has a separate identity on the docker network, which is why it's reachable by its own name. Give it the exact same treatment as qBittorrent, sharing gluetun's network namespace instead of having one of its own, so every search it sends to an indexer travels through the VPN tunnel too, not just the actual downloads afterward.</div>
+
+<p>Edit <code>docker-compose.yml</code>. First, add Prowlarr's port to gluetun's own <code>ports</code> list, since once Prowlarr shares gluetun's network, its port has to be published from there instead:</p>
+<span class="cmd">ports:
+  - 8080:8080
+  - 9696:9696
+  - 6881:6881
+  - 6881:6881/udp</span>
+<p>Then change the Prowlarr service itself, removing its own <code>ports:</code> line entirely (it can't publish its own ports once it's borrowing gluetun's network) and giving it the same networking line qBittorrent uses:</p>
+<span class="cmd">prowlarr:
+  image: lscr.io/linuxserver/prowlarr
+  container_name: prowlarr
+  network_mode: "service:gluetun"
+  depends_on:
+    - gluetun
+  environment:
+    - PUID=1000
+    - PGID=1000
+    - TZ=Etc/UTC
+  volumes:
+    - ./prowlarr/config:/config
+  restart: unless-stopped</span>
+<p>Apply it:</p>
+<span class="cmd">docker compose up -d</span>
+<div class="why"><b>Two things change elsewhere because of this, same pattern as qBittorrent:</b> Prowlarr's own web page moves from <code>prowlarr:9696</code> to your Docker host's own address on port <code>9696</code>, since gluetun now publishes that port on its behalf. And back in Sonarr's and Radarr's Settings, wherever Prowlarr's own address was used to sync indexers down (the "Prowlarr Server" field), update it from <code>http://prowlarr:9696</code> to <code>http://gluetun:9696</code>, since Prowlarr no longer has a name of its own to be reached by.</div>
+
 <div class="box safe"><span class="lbl">Where this guide deliberately stops</span>
 Every piece of plumbing above, the apps, how they're wired to each other, the VPN and its kill switch, stands on its own regardless of what you do next. The one thing left entirely to you is the actual list inside Prowlarr's <b>Settings → Indexers</b>, which specific indexers to add. That decision, and everything about sourcing content responsibly and legally, is left entirely to you to research and set up in your own way, so there's nothing above to undo whatever you choose there.</div>
 
