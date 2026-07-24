@@ -774,7 +774,7 @@ nano docker-compose.yml</span>
       - WIREGUARD_PRESHARED_KEY=paste_your_preshared_key_here
       - WIREGUARD_ADDRESSES=paste_your_address_here
       - SERVER_COUNTRIES=Netherlands
-      - FIREWALL_OUTBOUND_SUBNETS=192.168.1.0/24
+      - FIREWALL_OUTBOUND_SUBNETS=192.168.1.0/24,172.18.0.0/16
     restart: unless-stopped
 
   qbittorrent:
@@ -850,7 +850,10 @@ nano docker-compose.yml</span>
 <h4>Step B, fill in the compose file</h4>
 <p>Back in <code>docker-compose.yml</code>, replace <code>paste_your_private_key_here</code> with the <code>PrivateKey</code> value, <code>paste_your_preshared_key_here</code> with the <code>PresharedKey</code> value, and <code>paste_your_address_here</code> with the <code>Address</code> value exactly as it appears (including the <code>/32</code> on the end if it has one). The <code>SERVER_COUNTRIES=Netherlands</code> line just tells gluetun which country's AirVPN servers to use; swap in any country AirVPN offers, or delete that line entirely to let it choose from all of them. Then apply the change:</p>
 <span class="cmd">docker compose up -d</span>
-<div class="why"><b>Why <code>FIREWALL_OUTBOUND_SUBNETS</code> is also set:</b> gluetun's kill switch is strict enough by default to also block replies back to devices on your own home network, which would mean qBittorrent's web page never loads for you either. That one line tells gluetun "traffic to my own home network is fine, everything else outbound must go through the tunnel or nowhere," so you can still reach qBittorrent's interface from your own devices while every other connection stays VPN-only.</div>
+<div class="why"><b>Why <code>FIREWALL_OUTBOUND_SUBNETS</code> lists two ranges, not one:</b> gluetun's kill switch is strict enough by default to also block replies to anything not explicitly allowed, and two separate groups need that exception here. <code>192.168.1.0/24</code> is your home network, so your own devices can still reach qBittorrent's web page. <code>172.18.0.0/16</code> is the private address range Docker Compose automatically hands this whole stack for talking to itself, so that Sonarr, Radarr and Prowlarr, sitting on that internal network rather than your home one, can actually reach qBittorrent through gluetun too, needed for the Download Client step later on. Every other connection still goes through the tunnel or nowhere at all.</div>
+<div class="safe"><b>If your internal address turns out different:</b> Docker doesn't always hand out exactly <code>172.18.0.0/16</code>, it can vary. Confirm the real one for this stack, run from inside the Docker container:
+<span class="cmd">docker network inspect arrstack_default --format '{{range .IPAM.Config}}{{.Subnet}}{{end}}'</span>
+If that prints something different, use that value in the <code>FIREWALL_OUTBOUND_SUBNETS</code> line instead, then run <code>docker compose up -d</code> again to apply it.</div>
 
 <h4>Step C, prove it's actually working</h4>
 <ol class="steps">
@@ -894,8 +897,9 @@ Worth setting up three separate libraries in Jellyfin too, rather than one that 
 
 <p>One nice connecting step: in Jellyfin's Dashboard, under <b>API Keys</b>, generate a new key. Then in both Sonarr's and Radarr's own Settings, under <b>Connect</b>, add a new connection of type Jellyfin/Emby using your server's address and that key. This means Jellyfin refreshes its library the moment either one adds a file, rather than waiting for its next scheduled scan.</p>
 
-<p>Now connect qBittorrent as the download client both organisers hand fetch requests to. In both Sonarr's and Radarr's Settings, under <b>Download Clients</b>, add qBittorrent, and in the Host field type literally <code>gluetun</code> (not qbittorrent) with <code>8080</code> as the port. Test the connection and save.</p>
+<p>Now connect qBittorrent as the download client both organisers hand fetch requests to. In both Sonarr's and Radarr's Settings, under <b>Download Clients</b>, add qBittorrent, and in the Host field type literally <code>gluetun</code> (not qbittorrent) with <code>8080</code> as the port. Also fill in the <b>Username</b> and <b>Password</b> fields with <code>admin</code> and whatever you set qBittorrent's password to earlier, under its own Tools → Options → Web UI, leaving these blank is a common reason this step reports "Unable to connect" even when everything else is wired correctly, since qBittorrent's web interface requires a login the same way a browser visiting it would. Test the connection and save.</p>
 <div class="why"><b>Why the host is <code>gluetun</code> and not <code>qbittorrent</code>:</b> because everything in this stack was started from the same compose file, the apps can find each other by their names, no IP addresses needed between them. But qBittorrent has no network identity of its own, it borrows gluetun's entirely through <code>network_mode: "service:gluetun"</code>, so from every other container's point of view, qBittorrent lives at gluetun's name. Ask for gluetun on port 8080 and you reach qBittorrent's web interface sitting inside it.</div>
+<div class="safe"><b>If Test still fails with the credentials filled in correctly:</b> this is almost always the <code>FIREWALL_OUTBOUND_SUBNETS</code> setting from the gluetun step earlier not covering Docker's own internal network, the one Sonarr and Radarr actually sit on rather than your home network. Confirm the compose file already includes that internal range (see the safe box back in the VPN section for how to find it), and check <code>docker ps</code> shows gluetun's <code>CREATED</code> time as recent, proving it actually restarted with the setting rather than still running on an older one.</div>
 
 <p>Finally, open Prowlarr's own address and, under <b>Settings → Apps</b>, add both Sonarr and Radarr. Here you can use their names directly too, <code>sonarr</code> on port <code>8989</code> and <code>radarr</code> on port <code>7878</code>, along with each one's API key (found in that app's own Settings → General). This is what lets Prowlarr push its list of indexers down to both organisers automatically, rather than you configuring the same list twice.</p>
 
