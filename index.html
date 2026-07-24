@@ -116,7 +116,7 @@
   <div class="phase">Part 3 · Reach it anywhere, and make it self-sufficient</div>
   <ol start="9">
     <li><a href="#remote">Remote access: the whole of home networking, and security</a></li>
-    <li><a href="#automate">Automating your media library: Sonarr, Radarr, Prowlarr and qBittorrent, behind a VPN</a></li>
+    <li><a href="#automate">Filling your library on its own: Gelato, a streaming engine, and no downloads</a></li>
     <li><a href="#dashboard">One front door for the family: a dashboard, a memorable address, and no ports</a></li>
   </ol>
   <div class="phase">Part 4 · Keep it running, and where to take it next</div>
@@ -683,349 +683,52 @@ This one section covers <b>NAT</b>, <b>firewalls</b>, <b>public/private IPs</b>,
 <p class="a">CIDR notation for a block of 256 addresses (192.168.1.0–.255), where the first 24 bits are the fixed network portion.</p></div>
 
 <!-- ===================== AUTOMATE ===================== -->
-<h2 id="automate"><span class="n">10.</span>Automating your media library: Sonarr, Radarr, Prowlarr and qBittorrent, behind a VPN</h2>
-<p>Up to now, getting a new film or show into Jellyfin has meant copying the file across by hand. This section removes that chore properly: one new container hosts a small set of programs that find, fetch, rename and file new content automatically, then hand it to Jellyfin the moment it lands, with the one piece that reaches out to other people's devices routed safely through a VPN. This is what turns the build from "a media player I feed manually" into "a library that keeps itself current."</p>
+<h2 id="automate"><span class="n">10.</span>Filling your library on its own: Gelato, a streaming engine, and no downloads</h2>
+<p>Up to now, getting a new film or show into Jellyfin has meant finding it, downloading the whole file, and storing it on your own disk. This section takes a completely different route to a library that keeps itself current: instead of downloading and keeping anything, your server shows a placeholder for every title you could want, thousands of them, and only pulls the actual video from a fast streaming source at the moment someone presses play. The payoff is an enormous library that fills itself with no downloading, no waiting overnight, and no half finished files, in exchange for leaning on an outside service to do the heavy lifting. That trade is a real one, so it is spelled out plainly below before anything gets set up.</p>
 
-<div class="box learn"><span class="lbl">Understand this: the four pieces and the one job each does</span>
-Four small programs work together here, each with one clear job, so it's worth knowing what each one is before any of them get installed. <b>Sonarr</b> and <b>Radarr</b> are organisers, one for TV shows and one for films, that know what you want and file it correctly once it arrives, matching it to the right show or movie and renaming it sensibly. Neither one can search anywhere for content on its own. <b>Prowlarr</b> is an indexer manager, a single place where you tell the whole stack which indexers (search sources) to use, so you configure that list once in Prowlarr rather than separately inside Sonarr and inside Radarr. <b>qBittorrent</b> is the download client, the program that actually connects out to other people's devices to fetch a file once Sonarr, Radarr and Prowlarr have between them found and requested it. That last one, because it talks directly to strangers' devices rather than one central server, is the piece that gets routed through the VPN below.</div>
+<div class="box learn"><span class="lbl">Understand this: warehouse versus shop window</span>
+The old download approach is a <b>warehouse</b>. Every title physically arrives and sits on your shelves, yours forever, playing even with the internet down, but slow to fill and hungry for disk space. This new approach is a <b>shop window</b>. Your library shows a card for every title, thousands of them, but nothing is actually in the back room until someone asks, at which point it is fetched and played in seconds. The technical name for those cards is <b>stub files</b>, tiny one or two kilobyte markers that stand in for a real video file. Because nothing is stored, nothing stalls the way that Rick and Morty download did, but the shop only works while its supplier is open.</div>
 
-<h3>One box, many small programs: Docker</h3>
-<div class="box learn"><span class="lbl">Understand this: why these four don't each get their own Proxmox container</span>
-Every container so far, Pi-hole, Jellyfin, Homarr and the rest, has been its own separate Proxmox <b>LXC container</b>, a full, self-contained mini install of Linux, with its own login, its own file system, its own everything. That's a great fit for a handful of big, standalone services, but it starts to feel heavy for a cluster of small programs that are meant to be wired together and talk to each other constantly. <b>Docker</b> solves that differently: instead of several full mini-Linux installs, one single LXC container runs a program called <b>Docker</b>, and Docker in turn runs each of these four apps as its own lightweight, self-contained package, called a <b>container image</b> in Docker's own vocabulary (a different, smaller use of the word "container" than the Proxmox LXC kind, worth not confusing the two). All four sit inside that one Docker LXC, share its resources efficiently, and can be told to talk to one another by name.</div>
+<div class="box learn"><span class="lbl">Understand this: the three pieces that make it work</span>
+Three parts do this between them, each with one clear job. A <b>debrid service</b> (this build uses <b>TorBox</b>) is the engine: a company that keeps a huge pile of already fetched content sitting on fast servers and hands it to you over an ordinary web connection, which is exactly why playback is instant and there is no seeding or stalling to babysit. <b>AIOStreams</b> is the adapter: it gathers dozens of separate streaming sources, tidies and de-duplicates them, and hands your server one clean feed instead of a mess of eighty. <b>Gelato</b> is the Jellyfin plugin that ties it together: it writes the stub cards into your library, and when someone hits play it asks AIOStreams for a stream, gets one served from your debrid engine, and pipes it through Jellyfin to the screen. Three small pieces stand in for the whole six app download stack this guide used to describe.</div>
 
-<div class="box learn"><span class="lbl">Understand this: Docker Compose, a recipe file for the whole stack</span>
-Rather than clicking through a separate install for each of the four apps, Docker is normally driven from one plain text file, a <b>docker-compose.yml</b> file, that lists every app you want running, what image to use for each, which folders it should be able to see, and which network ports it needs. Run one command against that file and Docker reads the whole list and builds, starts and connects everything it describes in one go. Change the file later and re-run the same command to update the whole stack to match. That one file becomes the actual master record of your entire media stack going forward.</div>
+<div class="box safe"><span class="lbl">The honest trade off, before you commit</span>
+This route <b>rents</b> rather than owns. The day the TorBox subscription lapses, or the source your feed points at goes down, your library becomes thousands of placeholder cards with nothing behind them, and there is no local copy to fall back on. The download route was slow and fiddly, but what it produced sat on your own disk and worked forever with no account attached to it. TorBox is a few dollars a month, so this is not an expensive habit, but it is a running one. Neither route is wrong; this build deliberately picks convenience and a library that fills itself, and keeps open the option of pinning a small handful of true favourites to real disk later so they survive an outage.</div>
 
-<p>Create the Docker host itself as its own LXC, same community-scripts pattern as everything else, run from the Proxmox host:</p>
-<span class="cmd">bash -c "$(curl -fsSL https://raw.githubusercontent.com/community-scripts/ProxmoxVE/main/ct/docker.sh)"</span>
-<div class="why"><b>Why this script specifically, and leave it unprivileged:</b> this particular installer builds a Debian container with <b>nesting</b> already switched on for you, meaning the container is allowed to run its own containers inside itself, which is exactly what Docker needs to do and isn't turned on by default. It also sets Docker and Docker Compose up ready to use. This script builds the container as <b>unprivileged</b> by default, the more locked-down, sensible option, and it's best left that way rather than switched to privileged. The permissions mismatch this container hits when reaching into your NAS folder is handled a different way below, by giving the folder the correctly shifted owner an unprivileged container actually operates as, not by making the whole container privileged.</div>
-<p>Two of the defaults this script offers are worth changing before you go further: the memory and the disk. Both can be adjusted from the Proxmox host after the container is built, so there's no need to get them perfect during setup.</p>
-<div class="box safe"><span class="lbl">Give it a bit more memory</span>
-The default this script hands out (around 2GB) will technically run the stack, but it's tight enough that Sonarr and Radarr can get starved during a library scan. Bumping it to 4GB is comfortable and, since a container's memory can be changed while it's running, applies instantly with no reboot. Run from the Proxmox host:
-<span class="cmd">pct set &lt;docker-id&gt; -memory 4096</span>
-The number is in megabytes, so 4096 is 4GB. With 64GB in the machine there's no reason to be stingy here; 4GB is a sensible amount that leaves each app room to breathe.</div>
-<div class="box safe"><span class="lbl">Grow the disk before continuing</span>
-Your actual downloads land on the NAS drive through the bind mount below, not on this container's own disk, so the container disk never holds your media. What it does hold is the container's Debian install, Docker itself, and the five app images (gluetun, qBittorrent, Prowlarr, Sonarr, Radarr), which together realistically use 2.5 to 3GB before you've done anything at all. That leaves very little spare on a 4GB disk. The specific thing that catches people out is updates: when Docker pulls a newer version of an app, it briefly holds both the old and new copy at once before swapping them, and on a nearly-full disk that spike can make the update fail. Head it off now while it's a ten-second, no-reinstall fix. Growing a container's disk is safe and can even be done while it's running, run from the Proxmox host:
-<span class="cmd">pct resize &lt;docker-id&gt; rootfs +12G</span>
-<code>rootfs</code> is simply Proxmox's name for a container's main disk, and <code>+12G</code> means "add twelve" rather than a total, so a 4GB disk becomes a comfortable 16GB.</div>
+<div class="box why"><span class="lbl">Check this first: your Jellyfin version</span>
+Gelato needs <b>Jellyfin 10.11 or newer</b> to install at all. Before anything else, open Jellyfin, go to <b>Dashboard, then About</b>, and read the version number. If it is 10.11 or higher you are ready. If it is older, updating Jellyfin is the first job, and worth a snapshot of its container first out of the habit from the ops section. This one check decides everything downstream, so it comes before any account is created or any container is touched.</div>
 
-<div class="box learn"><span class="lbl">Understand this: two questions the script asks while it runs</span>
-As this installer works, it pauses to ask you a couple of things. The first is <b>"Would you like to add Portainer (UI)?"</b>. Portainer is a control panel for Docker: a webpage, reached at the Docker container's address on port <code>9000</code>, showing every container running, whether each is healthy, and letting you read a container's logs or stop and start it with a click, rather than only ever typing commands to learn any of that. It's genuinely worth saying <b>yes</b> to while you're learning, since it turns the whole stack from a black box into something you can watch. One thing to hold onto so it doesn't confuse you later: even with Portainer installed, you still build and update this stack from the <code>docker-compose.yml</code> file described below. Portainer is a window for watching and poking, not a replacement for that recipe file.
-<div class="safe" style="margin-top:8px"><b>If Portainer asks for a "Setup token" when you open it:</b> the first time you visit Portainer it gives you a short window (about five minutes) to create the admin account freely. If you take longer than that, it gets cautious and asks for a one-time token printed into its own logs, proving you actually have access to the server rather than just stumbling onto the login page. Grab it by printing Portainer's logs, run from the Proxmox host (swap in your Docker container's ID):
-<span class="cmd">pct exec &lt;docker-id&gt; -- docker logs portainer 2>&amp;1 | grep -i token</span>
-Paste the token it prints into the field, and finish creating your <code>nadri</code> admin account.</div>
-<div class="safe" style="margin-top:8px"><b>The second question is the important one to get right:</b> <b>"Expose Docker TCP socket (insecure)?"</b>, offering <code>n</code> (No), <code>l</code> (Local only) or <code>a</code> (All interfaces). Answer <b>n</b>. Normally Docker is controlled through a private hatch that exists only as a file inside the machine, so only things already on that machine can command it. This question asks whether to instead open a control door out onto the network, and that door has no password on it by default, while commanding Docker is effectively the same as being the all-powerful root user on the whole host, which is exactly why the prompt itself calls it "insecure". Nothing in this setup needs it: Portainer reaches Docker through that private internal file, not over the network, so leaving it off changes nothing about how anything works. This is the guide's <b>least privilege</b> principle in action, decline an exposure you have no use for.</div></div>
+<h3>Docker is still how one of these pieces runs</h3>
+<div class="box learn"><span class="lbl">Understand this: two of the three pieces need nothing installed on your server</span>
+It is worth being clear about where each piece actually lives, because it is less work than the old stack, not more. <b>TorBox</b> is simply an account on someone else's servers, so there is nothing to install for it at all. <b>Gelato</b> installs inside Jellyfin itself, as a <b>plugin</b>, from Jellyfin's own Dashboard. The only piece that runs on your own machine is <b>AIOStreams</b>, and it runs as a <b>Docker</b> container. You already built a Docker container earlier in this build, so AIOStreams becomes one more small entry in a <code>docker-compose.yml</code> recipe file there, brought up with the same one command style you already know. Docker lets one lightweight Linux container run self contained app packages, called container images, each described in that single plain text recipe file, rather than each app needing its own full Proxmox container.</div>
 
-<p>Decide where organised content will live, as subfolders of your existing NAS mount, run from the Proxmox host. This adds one new folder to the anime/tv/movies split from earlier, <code>downloads</code>, a landing spot for anything qBittorrent fetches before Sonarr or Radarr renames and moves it into its proper home:</p>
-<span class="cmd">mkdir -p /mnt/media/anime
-mkdir -p /mnt/media/tv
-mkdir -p /mnt/media/movies
-mkdir -p /mnt/media/downloads</span>
-
-<div class="box learn"><span class="lbl">Understand this: hand these folders to the right owner before Sonarr and Radarr touch them</span>
-Folders made with a plain <code>mkdir</code>, like the ones above, end up owned by root, since that's who ran the command. Inside the linuxserver.io images this stack uses (Sonarr, Radarr, qBittorrent), the app itself runs as an internal user called <code>abc</code>, matched to a real Linux user via the <code>PUID=1000</code>/<code>PGID=1000</code> lines you'll see in the compose file further down. That mismatch, root owning the folder, user 1000 trying to write into it, is exactly the same category of problem already met with Samba and Quick Sync earlier in this build, whoever owns a resource doesn't match whoever's trying to use it. Left as it is, Sonarr and Radarr will fail to add <code>/media/anime</code>, <code>/media/tv</code> or <code>/media/movies</code> as root folders later, with an error like "not writable by user 'abc'".</div>
-<div class="box safe"><span class="lbl">Why the number isn't simply 1000, and how to get it right</span>
-The Docker LXC you built is an <b>unprivileged</b> container (the sensible, more locked-down default, and there's no need to change that). An unprivileged container isn't trusted to act as the exact same user numbers on the host's real disk, so Proxmox quietly shifts every internal user ID by a fixed amount, 100000 by default, before anything actually lands on disk. In plain terms: internal user 0 becomes host user 100000, internal user 1 becomes host user 100001, and so on, so internal user <b>1000</b> (the one Sonarr and Radarr actually run as) needs the folder to genuinely belong to host user <b>101000</b>, not plain 1000. Giving it plain 1000 looks reasonable but is invisible to the container, since that's not the shifted number it's actually operating as. You can confirm this container has no unusual custom mapping by running <code>grep idmap /etc/pve/lxc/&lt;docker-id&gt;.conf</code> on the Proxmox host, if that prints nothing, the standard 100000 offset applies. Fix the ownership using the correctly shifted number, run from the Proxmox host:
-<span class="cmd">chown -R 101000:101000 /mnt/media</span>
-This only changes who owns the files, it doesn't touch anything already inside them, so it's completely safe even with Jellyfin already reading from this same folder. A folder's default permissions let anyone read and look inside regardless of who owns it, only writing is restricted to the owner, and Jellyfin only ever reads your media, never writes to it, so its access is untouched either way.</div>
-
-<p>Bind mount that same NAS folder into the Docker LXC, exactly the same trick used for Jellyfin, run from the Proxmox host:</p>
-<span class="cmd">pct set &lt;docker-id&gt; -mp0 /mnt/media,mp=/media</span>
-
-<div class="box learn"><span class="lbl">Understand this: hand the container a TUN device first, or the VPN can't start</span>
-The VPN piece of this stack (gluetun, further down) builds its tunnel using a small virtual network device called a <b>TUN device</b>, which on Linux lives at <code>/dev/net/tun</code>. A normal full machine has one, but a lightweight LXC container doesn't get one by default, because it shares the Proxmox host's kernel and the host doesn't pass that particular device through automatically. If you skip this, the stack will still pull and start most containers, but gluetun fails with an error like <code>no such file or directory</code> pointing at <code>/dev/net/tun</code>. Passing it through once, before the first run, avoids that entirely.</div>
-<p>Run these on the <b>Proxmox host</b>. First make sure the host has the TUN module loaded and set to load on every future boot (both commands print nothing, which is normal, silence means success):</p>
-<span class="cmd">modprobe tun
-echo tun >> /etc/modules-load.d/tun.conf</span>
-<p>Then edit the Docker container's config file to pass the device through:</p>
-<span class="cmd">nano /etc/pve/lxc/&lt;docker-id&gt;.conf</span>
-<p>Add these two lines at the bottom, then save and exit:</p>
-<span class="cmd">lxc.cgroup2.devices.allow: c 10:200 rwm
-lxc.mount.entry: /dev/net/tun dev/net/tun none bind,create=file</span>
-<div class="why"><b>Reading the two lines:</b> the first tells the host "this container is allowed to use that class of device," and the second actually mounts the device into the container at <code>/dev/net/tun</code>. The <code>10:200</code> is simply the fixed identifying number Linux uses for the TUN device, the same on every machine.</div>
-<p>Restart the container so it picks up the change (a full stop and start from the host, not a reboot from inside), then confirm the device is now present inside it:</p>
-<span class="cmd">pct stop &lt;docker-id&gt;
-pct start &lt;docker-id&gt;
-ls -l /dev/net/tun</span>
-<div class="see">You'll see: <code>ls</code> lists the device rather than reporting "no such file". Now gluetun will be able to build its tunnel when the stack starts.</div>
-
-<h3>Building the stack: the docker-compose.yml file</h3>
-<p>Inside the Docker container, make a folder to keep the stack's own files together, and create the recipe file itself:</p>
-<span class="cmd">mkdir -p /opt/arrstack
-cd /opt/arrstack
-nano docker-compose.yml</span>
-<p>Paste in the following, then save and exit (in nano, <code>Ctrl+O</code>, Enter, <code>Ctrl+X</code>):</p>
-<span class="cmd">services:
-  gluetun:
-    image: qmcgaw/gluetun
-    container_name: gluetun
-    cap_add:
-      - NET_ADMIN
-    devices:
-      - /dev/net/tun:/dev/net/tun
-    ports:
-      - 8080:8080
-      - 6881:6881
-      - 6881:6881/udp
-    environment:
-      - VPN_SERVICE_PROVIDER=airvpn
-      - VPN_TYPE=wireguard
-      - WIREGUARD_PRIVATE_KEY=paste_your_private_key_here
-      - WIREGUARD_PRESHARED_KEY=paste_your_preshared_key_here
-      - WIREGUARD_ADDRESSES=paste_your_address_here
-      - SERVER_COUNTRIES=Netherlands
-      - FIREWALL_OUTBOUND_SUBNETS=192.168.1.0/24,172.18.0.0/16
-    restart: unless-stopped
-
-  qbittorrent:
-    image: lscr.io/linuxserver/qbittorrent
-    container_name: qbittorrent
-    network_mode: "service:gluetun"
-    depends_on:
-      - gluetun
-    environment:
-      - PUID=1000
-      - PGID=1000
-      - TZ=Etc/UTC
-      - WEBUI_PORT=8080
-    volumes:
-      - ./qbittorrent/config:/config
-      - /media/downloads:/downloads
-    restart: unless-stopped
-
-  prowlarr:
-    image: lscr.io/linuxserver/prowlarr
-    container_name: prowlarr
-    ports:
-      - 9696:9696
-    environment:
-      - PUID=1000
-      - PGID=1000
-      - TZ=Etc/UTC
-    volumes:
-      - ./prowlarr/config:/config
-    restart: unless-stopped
-
-  sonarr:
-    image: lscr.io/linuxserver/sonarr
-    container_name: sonarr
-    ports:
-      - 8989:8989
-    environment:
-      - PUID=1000
-      - PGID=1000
-      - TZ=Etc/UTC
-    volumes:
-      - ./sonarr/config:/config
-      - /media:/media
-    restart: unless-stopped
-
-  radarr:
-    image: lscr.io/linuxserver/radarr
-    container_name: radarr
-    ports:
-      - 7878:7878
-    environment:
-      - PUID=1000
-      - PGID=1000
-      - TZ=Etc/UTC
-    volumes:
-      - ./radarr/config:/config
-      - /media:/media
-    restart: unless-stopped</span>
-<div class="why"><b>Reading the pieces that repeat:</b> <code>image</code> says which pre-built package to run. <code>ports</code> says which door numbers on the Docker host actually reach that app, the same idea as every <code>&lt;ip&gt;:port</code> address used throughout this guide. <code>volumes</code> says which real folders on disk a container is allowed to see, mapped to a path inside it, the <code>./sonarr/config</code> style paths are just small folders Docker will create right there in <code>/opt/arrstack</code> to hold each app's own settings, separate from your actual media. <code>PUID</code>/<code>PGID</code> are the Linux user and group numbers these apps run as internally, matching them to a real user is what avoids the same kind of permissions mismatch met earlier with unprivileged containers.</div>
-
-<p>Bring the whole stack up with one command, run from <code>/opt/arrstack</code>:</p>
-<span class="cmd">docker compose up -d</span>
-<div class="see">You'll see: Docker pulling each image the first time (may take a few minutes), then <code>docker ps</code> listing all five containers (gluetun, qbittorrent, prowlarr, sonarr, radarr) as running.</div>
-
-<h3>Wiring the VPN kill switch the Docker way: gluetun</h3>
-<div class="box learn"><span class="lbl">Understand this: what gluetun actually is, and why qBittorrent has no compose entry of its own network-wise</span>
-<b>gluetun</b> is a small container whose only job is holding a VPN tunnel open and enforcing a kill switch around it, the exact same principle covered for other setups, if the tunnel drops, nothing gets out, rather than quietly falling back to a normal, visible connection. The line <code>network_mode: "service:gluetun"</code> on qBittorrent is what actually enforces that, in plain terms it means qBittorrent is given no network connection of its own at all, it borrows gluetun's entirely. The real jargon for "a program's own private slice of networking" is a <b>network namespace</b>, and sharing one this way means qBittorrent physically has no other path to the internet to fall back to, even by accident. If gluetun's tunnel goes down, qBittorrent doesn't get a normal connection instead, it gets nothing, which is what a kill switch means.</div>
-
-<h4>Step A, get your AirVPN WireGuard details</h4>
-<p>Log into AirVPN's own website, open their <b>"Config Generator"</b> in the client area, choose <b>WireGuard</b> as the protocol and generate a configuration for a server of your choosing, then download the resulting <code>.conf</code> file. Open it in a text editor and note three lines from inside it, all under <code>[Interface]</code>: the <code>PrivateKey</code> line, the <code>PresharedKey</code> line, and the <code>Address</code> line.</p>
-<div class="safe"><b>Don't skip the preshared key:</b> AirVPN's WireGuard uses a second key, the <b>preshared key</b>, on top of the private one, an extra shared secret layered in for additional protection. It's easy to miss because some other VPN providers don't use one at all, but with AirVPN the tunnel simply will not connect without it, so make sure you grab that <code>PresharedKey</code> line too.</div>
-
-<h4>Step B, fill in the compose file</h4>
-<p>Back in <code>docker-compose.yml</code>, replace <code>paste_your_private_key_here</code> with the <code>PrivateKey</code> value, <code>paste_your_preshared_key_here</code> with the <code>PresharedKey</code> value, and <code>paste_your_address_here</code> with the <code>Address</code> value exactly as it appears (including the <code>/32</code> on the end if it has one). The <code>SERVER_COUNTRIES=Netherlands</code> line just tells gluetun which country's AirVPN servers to use; swap in any country AirVPN offers, or delete that line entirely to let it choose from all of them. Then apply the change:</p>
-<span class="cmd">docker compose up -d</span>
-<div class="why"><b>Why <code>FIREWALL_OUTBOUND_SUBNETS</code> lists two ranges, not one:</b> gluetun's kill switch is strict enough by default to also block replies to anything not explicitly allowed, and two separate groups need that exception here. <code>192.168.1.0/24</code> is your home network, so your own devices can still reach qBittorrent's web page. <code>172.18.0.0/16</code> is the private address range Docker Compose automatically hands this whole stack for talking to itself, so that Sonarr, Radarr and Prowlarr, sitting on that internal network rather than your home one, can actually reach qBittorrent through gluetun too, needed for the Download Client step later on. Every other connection still goes through the tunnel or nowhere at all.</div>
-<div class="safe"><b>If your internal address turns out different:</b> Docker doesn't always hand out exactly <code>172.18.0.0/16</code>, it can vary. Confirm the real one for this stack, run from inside the Docker container:
-<span class="cmd">docker network inspect arrstack_default --format '{{range .IPAM.Config}}{{.Subnet}}{{end}}'</span>
-If that prints something different, use that value in the <code>FIREWALL_OUTBOUND_SUBNETS</code> line instead, then run <code>docker compose up -d</code> again to apply it.</div>
-
-<h4>Step C, prove it's actually working</h4>
+<h3>The build, in order</h3>
+<p>The exact commands, tokens and screens for each of these get filled into this section as we do them together, the same way every other part of this guide was written from the real steps rather than ahead of them. What follows is the shape of the build so the whole path is visible before the first click.</p>
 <ol class="steps">
-  <li>Check gluetun's own connection: <code>docker exec gluetun wget -qO- ifconfig.me</code>.
-    <div class="see">You'll see: an IP address belonging to AirVPN, not your home address. That's the tunnel working.</div>
-  </li>
-  <li>Check qBittorrent sees the exact same thing, proving it's genuinely sharing gluetun's connection rather than having one of its own: <code>docker exec qbittorrent wget -qO- ifconfig.me</code>.
-    <div class="see">You'll see: the identical VPN address as the previous step.</div>
-  </li>
-  <li>Now deliberately break it to test the kill switch: edit the <code>WIREGUARD_PRIVATE_KEY</code> line in the compose file to something wrong, run <code>docker compose up -d</code> again, then try the same <code>wget</code> command against qBittorrent once more.
-    <div class="see">You'll see: it should hang and fail completely, qBittorrent's web page becoming unreachable too, not quietly succeed with your home IP instead. That failure is the proof the kill switch is doing its job. Put the correct key back and run <code>docker compose up -d</code> once more to restore it.</div>
-  </li>
+  <li><b>Confirm Jellyfin is 10.11 or newer</b>, updating it first if not. This is the gate for everything else, so it is settled before anything is bought or built.</li>
+  <li><b>Create a TorBox account</b> and get its <b>API token</b>. This is the paid engine, and its token is the single credential the rest of the setup hands around, so it is worth storing in your notes file the moment you have it, the same documentation habit as every password so far.</li>
+  <li><b>Deploy AIOStreams</b> as a container in your existing Docker box, then open its configuration page and give it two things: your TorBox token, so it knows which engine to resolve streams through, and at least one search source so it has a catalogue to show. It hands back a single web address called a <b>manifest</b>, which is the one link Gelato needs.</li>
+  <li><b>Install the Gelato plugin in Jellyfin</b>, by adding its plugin repository under <b>Dashboard, Plugins, Repositories</b>, installing Gelato from the catalogue, and restarting Jellyfin when it asks. Then paste the AIOStreams manifest into Gelato's settings so the plugin knows where to get its catalogue and streams.</li>
+  <li><b>Give Gelato its own library folders</b>, one for films and a separate one for shows, kept apart from any real media, since a single folder shared between the two is the most common thing that trips Gelato up. Point a new Jellyfin <b>Movies</b> library and a new <b>Shows</b> library at those folders so the stub cards appear in their own clean rows.</li>
+  <li><b>Test one play</b>, end to end: open Jellyfin, pick a title Gelato has filled in, and press play. A working setup starts the stream within a few seconds, served through your debrid engine, with nothing downloaded to disk. That first successful play is the proof the whole chain is wired correctly.</li>
 </ol>
 
-<h4>Step D, log into qBittorrent for the first time</h4>
-<div class="box why"><span class="lbl">Which address actually loads qBittorrent's web page, and why</span>
-Because qBittorrent borrows gluetun's networking entirely rather than having any of its own, it has no separate address to visit. The address that actually works is your <b>Docker host's own IP</b>, the same one everything else in this stack (Sonarr, Radarr, Prowlarr, Portainer) sits behind, on port <code>8080</code>, for example <code>http://192.168.1.200:8080</code>. That works because port <code>8080</code> is published by gluetun in the compose file above (the <code>ports: - 8080:8080</code> line under the <code>gluetun</code> service, not under <code>qbittorrent</code>), and gluetun in turn hands that traffic straight to qBittorrent, since the two share one network. If you're ever unsure of the Docker host's own address, <code>ip -4 a show eth0</code> run inside it will show you.</div>
-<p>Recent versions of qBittorrent no longer ship with a fixed default password. Instead, the first time it starts it generates a random temporary one and prints it into its own logs, the same idea as the Portainer setup token from earlier. The username is <code>admin</code>, and you get the temporary password by reading its logs, run from inside the Docker container:</p>
-<span class="cmd">docker logs qbittorrent | grep -i password</span>
-<div class="see">You'll see: a line containing a temporary password. Log in with that, then set a proper password of your own straight away under qBittorrent's <b>Tools → Options → Web UI</b>, since the temporary one changes every time the container restarts.</div>
-
-<div class="box undo"><span class="lbl">If you need to undo this entirely</span>
-<code>docker compose down</code>, run from <code>/opt/arrstack</code>, stops and removes all five containers in one go, leaving the config folders and your media untouched, so running <code>docker compose up -d</code> again brings everything straight back the way it was.</div>
+<div class="box safe"><span class="lbl">Only tear the old stack down once this one plays</span>
+If you are moving here from the old download stack rather than starting fresh, resist removing it until a title has actually streamed through Gelato at least once. The moment to retire Sonarr, Radarr, Prowlarr, qBittorrent, gluetun and Jellyseerr is after the new route is proven, not before, so the household is never left with a library that neither downloads nor streams. Once Gelato plays cleanly, the old <code>docker compose down</code> on the arr stack is safe to run.</div>
 
 <div class="recap"><span class="lbl">Recap</span>
-<ul><li><b>Docker</b> runs several small, lightweight app packages inside one LXC container, described together in one <b>docker-compose.yml</b> recipe file, rather than each app getting its own full Proxmox container.</li>
-<li><b>Sonarr</b>/<b>Radarr</b> organise, <b>Prowlarr</b> manages the list of indexers, <b>qBittorrent</b> is the one that actually fetches, each with one clear job.</li>
-<li><code>network_mode: "service:gluetun"</code> gives qBittorrent no network connection of its own at all, borrowing gluetun's entirely, so if the VPN tunnel drops there is nothing to fall back to. That's the kill switch, enforced by how the containers are wired together rather than by manual firewall rules.</li></ul></div>
+<ul><li>This route keeps almost nothing on disk. It fills the library with tiny <b>stub file</b> placeholders and fetches the real video on demand when someone presses play, the shop window rather than the warehouse.</li>
+<li>Three pieces do it: <b>TorBox</b> (the paid engine that makes playback instant), <b>AIOStreams</b> (the adapter that gathers sources into one feed, run as a Docker container), and the <b>Gelato</b> plugin inside Jellyfin (which writes the stubs and resolves a stream on play).</li>
+<li>The trade is convenience for ownership: it fills itself and never stalls, but it rents from an outside service, so nothing plays if that service or subscription goes away. <b>Gelato needs Jellyfin 10.11 or newer.</b></li></ul></div>
 
 <div class="quiz"><span class="lbl">Check yourself</span>
-<p class="q">Q1. What does Prowlarr actually do, and why is it a separate app from Sonarr and Radarr rather than a setting inside each?</p>
-<p class="a">Prowlarr manages the list of indexers (search sources) in one central place. Keeping it separate means that list only ever needs configuring once, rather than being duplicated inside both Sonarr and Radarr.</p>
-<p class="q">Q2. Why does giving qBittorrent gluetun's network namespace, instead of its own, work as a kill switch?</p>
-<p class="a">A program with no network connection of its own has nothing to fall back to. Since qBittorrent borrows gluetun's connection entirely rather than having a separate one alongside it, if gluetun's VPN tunnel drops, qBittorrent simply has no path to the internet at all, rather than quietly reverting to a normal, visible one.</p></div>
-
-<h3>Wiring the apps together</h3>
-<p>Open Sonarr's own web address, go to <b>Settings → Media Management → Root Folders</b>, and add both <code>/media/anime</code> and <code>/media/tv</code> as two separate root folders, rather than just the one. Then, whenever you add a new show, Sonarr lets you choose which of the two root folders it goes into right there on the add screen, and also lets you set its <b>Series Type</b> to <code>Anime</code> or <code>Standard</code> for that title, which is what actually fixes episode numbering, since anime is frequently numbered differently to Western TV, often one continuous episode count running across the whole show rather than resetting each season, called <b>absolute numbering</b>. Open Radarr's address and point its single root folder at <code>/media/movies</code>, since films don't have this same numbering quirk.</p>
-
-<div class="box why"><span class="lbl">Matching this in Jellyfin</span>
-Worth setting up three separate libraries in Jellyfin too, rather than one that covers everything, Anime, TV Shows, and Movies, each pointed at its matching folder (<code>/media/anime</code>, <code>/media/tv</code>, <code>/media/movies</code>) and each set to the correct content type when you create it. This is what gives anime its own clean row on the home screen instead of being buried alphabetically among everything else, and it also helps Jellyfin fetch the right kind of metadata (episode thumbnails, correct show artwork) for each.</div>
-
-<p>One nice connecting step: in Jellyfin's Dashboard, under <b>API Keys</b>, generate a new key. Then in both Sonarr's and Radarr's own Settings, under <b>Connect</b>, add a new connection of type Jellyfin/Emby using your server's address and that key. This means Jellyfin refreshes its library the moment either one adds a file, rather than waiting for its next scheduled scan.</p>
-
-<p>Now connect qBittorrent as the download client both organisers hand fetch requests to. In both Sonarr's and Radarr's Settings, under <b>Download Clients</b>, add qBittorrent, and in the Host field type literally <code>gluetun</code> (not qbittorrent) with <code>8080</code> as the port. Also fill in the <b>Username</b> and <b>Password</b> fields with <code>admin</code> and whatever you set qBittorrent's password to earlier, under its own Tools → Options → Web UI, leaving these blank is a common reason this step reports "Unable to connect" even when everything else is wired correctly, since qBittorrent's web interface requires a login the same way a browser visiting it would. Test the connection and save.</p>
-<div class="why"><b>Why the host is <code>gluetun</code> and not <code>qbittorrent</code>:</b> because everything in this stack was started from the same compose file, the apps can find each other by their names, no IP addresses needed between them. But qBittorrent has no network identity of its own, it borrows gluetun's entirely through <code>network_mode: "service:gluetun"</code>, so from every other container's point of view, qBittorrent lives at gluetun's name. Ask for gluetun on port 8080 and you reach qBittorrent's web interface sitting inside it.</div>
-<div class="safe"><b>If Test still fails with the credentials filled in correctly:</b> this is almost always the <code>FIREWALL_OUTBOUND_SUBNETS</code> setting from the gluetun step earlier not covering Docker's own internal network, the one Sonarr and Radarr actually sit on rather than your home network. Confirm the compose file already includes that internal range (see the safe box back in the VPN section for how to find it), and check <code>docker ps</code> shows gluetun's <code>CREATED</code> time as recent, proving it actually restarted with the setting rather than still running on an older one.</div>
-
-<div class="box learn"><span class="lbl">Understand this: one more mismatch before a finished download actually moves</span>
-Even once qBittorrent connects, a genuine gotcha waits for the very first thing that finishes downloading. qBittorrent sees its own downloads folder as <code>/downloads</code>, from its own <code>/media/downloads:/downloads</code> line in the compose file. Sonarr and Radarr see that exact same physical folder as <code>/media/downloads</code> instead, from their own <code>/media:/media</code> line. So when qBittorrent reports "finished, it's at <code>/downloads/whatever</code>," Sonarr or Radarr goes looking for <code>/downloads/...</code>, which doesn't exist inside their own container, and the import quietly stalls, the file just sits in <code>downloads</code> forever instead of moving into its proper folder. You'll spot this in Radarr or Sonarr's own <b>System</b> page as a red health warning naming this exact mismatch.</div>
-<p>Fix it once, in both Sonarr's and Radarr's Settings, under <b>Download Clients → Remote Path Mappings</b>, add:</p>
-<ul>
-<li><b>Host:</b> <code>gluetun</code></li>
-<li><b>Remote Path:</b> <code>/downloads</code></li>
-<li><b>Local Path:</b> <code>/media/downloads</code></li>
-</ul>
-<div class="why"><b>What this actually does:</b> it's a small translation dictionary. Whenever this download client reports a path starting with <code>/downloads</code>, Sonarr or Radarr now reads it as <code>/media/downloads</code> instead, the folder they can genuinely see through their own mount. Once saved, a stuck item usually imports within a minute on its own, or use the <b>Manual Import</b> button (in the main toolbar) to point it at the file directly rather than waiting.</div>
-
-<p>Finally, open Prowlarr's own address and, under <b>Settings → Apps</b>, add both Sonarr and Radarr. Here you can use their names directly too, <code>sonarr</code> on port <code>8989</code> and <code>radarr</code> on port <code>7878</code>, along with each one's API key (found in that app's own Settings → General). This is what lets Prowlarr push its list of indexers down to both organisers automatically, rather than you configuring the same list twice.</p>
-
-<h3>Routing Prowlarr's own searches through the VPN too</h3>
-<div class="box learn"><span class="lbl">Understand this: Prowlarr gets the same treatment as qBittorrent</span>
-So far, only qBittorrent has no network of its own, borrowing gluetun's entirely. Prowlarr still has a separate identity on the docker network, which is why it's reachable by its own name. Give it the exact same treatment as qBittorrent, sharing gluetun's network namespace instead of having one of its own, so every search it sends to an indexer travels through the VPN tunnel too, not just the actual downloads afterward.</div>
-
-<p>Edit <code>docker-compose.yml</code>. First, add Prowlarr's port to gluetun's own <code>ports</code> list, since once Prowlarr shares gluetun's network, its port has to be published from there instead (this replaces gluetun's existing <code>ports:</code> block, keeping the same four-then-six-space indentation it already has):</p>
-<span class="cmd">    ports:
-      - 8080:8080
-      - 9696:9696
-      - 6881:6881
-      - 6881:6881/udp</span>
-<p>Then change the Prowlarr service itself, removing its own <code>ports:</code> line entirely (it can't publish its own ports once it's borrowing gluetun's network) and giving it the same networking line qBittorrent uses. Keep its two-space indentation lined up with the other services:</p>
-<span class="cmd">  prowlarr:
-    image: lscr.io/linuxserver/prowlarr
-    container_name: prowlarr
-    network_mode: "service:gluetun"
-    depends_on:
-      - gluetun
-    environment:
-      - PUID=1000
-      - PGID=1000
-      - TZ=Etc/UTC
-    volumes:
-      - ./prowlarr/config:/config
-    restart: unless-stopped</span>
-<p>Apply it:</p>
-<span class="cmd">docker compose up -d</span>
-<div class="why"><b>Two things change elsewhere because of this, same pattern as qBittorrent:</b> Prowlarr's own web page moves from <code>prowlarr:9696</code> to your Docker host's own address on port <code>9696</code>, since gluetun now publishes that port on its behalf. And back in Sonarr's and Radarr's Settings, wherever Prowlarr's own address was used to sync indexers down (the "Prowlarr Server" field), update it from <code>http://prowlarr:9696</code> to <code>http://gluetun:9696</code>, since Prowlarr no longer has a name of its own to be reached by.</div>
-
-<div class="box safe"><span class="lbl">Where this guide deliberately stops</span>
-Every piece of plumbing above, the apps, how they're wired to each other, the VPN and its kill switch, stands on its own regardless of what you do next. The one thing left entirely to you is the actual list inside Prowlarr's <b>Settings → Indexers</b>, which specific indexers to add. That decision, and everything about sourcing content responsibly and legally, is left entirely to you to research and set up in your own way, so there's nothing above to undo whatever you choose there.</div>
-
-<div class="quiz"><span class="lbl">Check yourself</span>
-<p class="q">Q1. Why does Sonarr's Download Client setting point at gluetun's address rather than qBittorrent's own container name?</p>
-<p class="a">qBittorrent has no network identity of its own, it borrows gluetun's entirely through <code>network_mode: "service:gluetun"</code>. Any other container that wants to reach qBittorrent's web interface has to ask for gluetun by name instead.</p>
-<p class="q">Q2. Why does anime get its own root folder and its own Series Type rather than sitting with regular TV?</p>
-<p class="a">Anime often uses continuous "absolute" episode numbering across a whole show rather than resetting per season. Its own folder plus setting the Series Type to Anime is what makes Sonarr number and file it correctly, and it keeps Jellyfin's browsing tidy.</p></div>
-
-<h3>Giving the family a front door to request content: Jellyseerr</h3>
-<div class="box learn"><span class="lbl">Understand this: what Jellyseerr actually adds</span>
-Right now, adding something new to the library means going into Sonarr or Radarr yourself and adding it there. <b>Jellyseerr</b> is a small browsing and request app that sits in front of all of it: anyone in the family opens its own web page, searches for a film or show the same way they would on Jellyfin, and clicks "Request." Jellyseerr then talks to Sonarr or Radarr's own API to add and monitor that title, which flows through the exact same pipeline already built, Prowlarr's indexers, qBittorrent behind the VPN, then Jellyfin picking it up automatically. Nobody else in the house needs to know Sonarr or Radarr exist at all.</div>
-
-<p>Add it to the stack the same way as everything else. Edit <code>docker-compose.yml</code> and add this as a new service, pasting it after the <code>radarr:</code> block. Keep the same two-space indentation the other services use, its name lines up under theirs, not at the left margin, since YAML decides what belongs to what purely by indentation:</p>
-<span class="cmd">  jellyseerr:
-    image: fallenbagel/jellyseerr:latest
-    container_name: jellyseerr
-    ports:
-      - 5055:5055
-    environment:
-      - LOG_LEVEL=info
-      - TZ=Etc/UTC
-    volumes:
-      - ./jellyseerr/config:/app/config
-    restart: unless-stopped</span>
-<div class="why"><b>Why no VPN routing for this one, unlike qBittorrent and Prowlarr:</b> Jellyseerr never contacts an indexer or a tracker itself. A search inside it queries a public film-and-TV metadata catalogue (TMDB), the same sort of place Jellyfin already pulls posters from, and a request just makes an internal API call to Sonarr or Radarr, which then do the actual sourcing through Prowlarr and qBittorrent, still inside the tunnel. So the sensitive traffic stays protected exactly as before; there's nothing about Jellyseerr's own traffic the VPN was ever guarding.</div>
-<p>Apply it:</p>
-<span class="cmd">docker compose up -d</span>
-<p>Open your Docker host's own address on port <code>5055</code> and walk through its setup wizard:</p>
-<ol class="steps">
-  <li>Before connecting, worth creating a dedicated login for this in Jellyfin rather than reusing your own personal one: <b>Dashboard → Users → Add User</b>, call it something like <code>jellyseerr</code>, give it a password, and grant it <b>Administrator</b> access, since Jellyseerr needs that level to see and sync every library.
-    <div class="why"><b>Why not just use your own login:</b> it's good practice to keep the account a person actually signs in with day to day separate from one that only exists for a piece of software to authenticate as, called a <b>service account</b>. If it were ever exposed or needed resetting, it's completely independent of your own daily login, and it keeps Jellyseerr's access cleanly separate from yours.</div>
-  </li>
-  <li>Choose <b>Jellyfin</b> as the media server, enter Jellyfin's own address, and sign in with that new <code>jellyseerr</code> account rather than your own. Select the three libraries created earlier, Anime, TV Shows and Movies, so Jellyseerr knows what already exists, then click <b>Start Scan</b> under Manual Library Scan, a one-time full read of your existing library so Jellyseerr's picture of what's already there is accurate from the start.
-    <div class="why"><b>Why connect to Jellyfin at all, when requests go to Sonarr and Radarr:</b> this connection is what lets Jellyseerr show whether something's already in the library (so nobody requests a film you already have), and it's also what lets each family member sign in using their own existing Jellyfin account rather than creating a separate login for this too.</div>
-  </li>
-  <li>Under <b>Settings → Services</b>, add Sonarr, using <code>sonarr</code> as the host and <code>8989</code> as the port, along with its API key. Set the default root folder to <code>/media/tv</code>, then fill in the separate <b>Anime</b> section further down the same form with <code>/media/anime</code> as its root folder.
-    <div class="safe"><b>Don't leave Anime Series Type as "Standard":</b> this one's easy to miss and quietly undoes the anime numbering work from earlier. The Anime section has its own <b>Anime Series Type</b> dropdown, separate from the main one above it, and it needs to be set to <b>Anime</b>, not left on Standard. This is the value Jellyseerr actually sends to Sonarr whenever it adds something through the Anime section, leaving it on Standard means anime requested through Jellyseerr gets treated as ordinary TV, losing the absolute-numbering handling the whole anime/tv split exists for. Also pick an actual <b>Anime Quality Profile</b> from its dropdown rather than leaving it unset. Worth switching on <b>Enable Scan</b> too, so Jellyseerr keeps checking Sonarr's own library over time, and <b>Season Folders</b>, which keeps new shows organised into per-season subfolders, the tidier, more Jellyfin-friendly default.</div>
-  </li>
-  <li>Add Radarr the same way, host <code>radarr</code>, port <code>7878</code>, its API key, and root folder <code>/media/movies</code>. <b>Minimum Availability</b> set to <code>Released</code> is a sensible default, so only films that have actually come out can be requested. Worth switching on <b>Enable Scan</b> here too, same reasoning as Sonarr.</li>
-</ol>
-<div class="box safe"><span class="lbl">Worth turning on for a family setup</span>
-Under <b>Settings → Users</b>, requests from anyone other than you default to needing your approval before they're sent onward, a genuinely sensible default for a household. You can grant specific family members permission to auto-approve their own requests later, once you trust what they're asking for, without changing anything else about how the stack works.</div>
-
-<div class="recap"><span class="lbl">Recap</span>
-<ul><li><b>Jellyseerr</b> gives the family their own browsing and request page, so nobody but you ever needs to open Sonarr or Radarr directly.</li>
-<li>A request still flows through the exact same pipeline already built, Sonarr/Radarr organise, Prowlarr's indexers find it, qBittorrent fetches it behind the VPN, Jellyfin picks it up automatically.</li>
-<li>Signing in with an existing Jellyfin account, and requiring approval by default, are the two settings that make this genuinely fit for a household rather than a single user.</li></ul></div>
+<p class="q">Q1. Your library shows thousands of films but the disk is nearly empty. Where is the actual video for a film you have not watched yet?</p>
+<p class="a">Nowhere on your disk. Each title is only a tiny stub file placeholder until you press play, at which point Gelato fetches the real stream on demand from your debrid engine through AIOStreams. Nothing is stored unless you deliberately pin it later.</p>
+<p class="q">Q2. What is the one thing that stops working if your TorBox subscription lapses, and why is that different from the old download setup?</p>
+<p class="a">Playback stops entirely, because the debrid engine that actually serves the video is gone, leaving only empty placeholder cards. The old download setup kept real files on your own disk, so they would keep playing regardless of any subscription.</p></div>
 
 <div class="box map"><span class="lbl">You'll meet this again</span>
-<b>Docker</b> and <b>Docker Compose</b> are two of the most widely used pieces of real infrastructure anywhere, the same underlying idea behind <b>Azure Container Instances</b> and <b>Kubernetes</b> at cloud scale, describing a whole stack of small services in one file rather than clicking through installs by hand is exactly the mindset behind <b>infrastructure as code</b>. A <b>network namespace</b> is genuine Linux and cloud networking vocabulary you'll meet again in <b>Network+</b> and any container-networking topic in <b>AZ-104</b>.</div>
-
-<h3>Blind automation: letting Sonarr and Radarr fill themselves up on their own</h3>
-<div class="box learn"><span class="lbl">Understand this: an Import List is not the same thing as Jellyseerr</span>
-Jellyseerr is a person clicking "Request," one title, one decision, made by someone in the family. An <b>Import List</b> is different: it's Sonarr or Radarr itself reaching out on a schedule to some outside "what's popular right now" chart, and quietly adding every title on it that isn't already in your library, with nobody clicking anything at all. Once one is switched on, your library starts growing on its own in the background, which is exactly what "blind automation" means here, blind in the sense that nothing gets a human's eyes on it before it's added.</div>
-
-<p>Both apps keep this in the same place: <b>Settings → Import Lists → </b>the plus button to add one. The list of available list types is long, but a handful are worth trusting over the rest.</p>
-
-<p><b>For Radarr (movies):</b></p>
-<ul>
-  <li><b>StevenLu Popular Movies</b>, the simplest option worth starting with. It's a small, hand-curated feed of currently popular films, needs no account, no API key, nothing to sign up for, just add it and it works.</li>
-  <li><b>Trakt Popular</b> or <b>Trakt Trending</b>, more tunable than StevenLu (you can cap how many titles it pulls, filter by year or genre), but it needs your own Trakt account connected first, via a short device code you approve on Trakt's own website from Radarr's list settings.</li>
-</ul>
-<p><b>For Sonarr (TV and anime):</b></p>
-<ul>
-  <li><b>Trakt Popular</b> or <b>Trakt Trending</b>, the same account-linking step as Radarr, works well for ordinary TV shows.</li>
-  <li><b>AniList</b>, the one worth pointing specifically at your <b>Anime</b> root folder rather than the regular TV one. It can pull straight from AniList's own trending or popular-airing charts without needing a personal AniList account at all, which keeps it consistent with the anime/TV split already built into the library.</li>
-</ul>
-
-<p>Whichever list you add, the same handful of settings appear on its configuration page, and they're what actually decide how "blind" this gets:</p>
-<ol class="steps">
-  <li><b>Root Folder</b>, exactly like adding something by hand, point Radarr's lists at <code>/media/movies</code>, and point Sonarr's ordinary TV lists at <code>/media/tv</code> while its AniList one points at <code>/media/anime</code> instead, keeping the same split the rest of the guide has used throughout.</li>
-  <li><b>Quality Profile</b>, worth picking something modest here rather than your highest one. A list adding titles unattended has no person double-checking file sizes before they land, so a heavier profile here can fill a drive far faster than manual requests ever would.</li>
-  <li><b>Monitor</b> (Sonarr specifically also asks this per show, options like "All Episodes" versus "Future Episodes Only"), which decides how much of a show's back catalogue gets pulled in versus only new episodes going forward.</li>
-  <li><b>Minimum Availability</b> (Radarr), <code>Released</code> is the sensible default here too, same reasoning as Jellyseerr's own Radarr setup, so nothing gets chased down before it's actually out.</li>
-  <li><b>Search on Add</b>, the toggle that decides whether "blind" really means blind. Left off, the list only adds and monitors titles, nothing gets fetched until you go trigger it yourself. Switched on, every new title the list adds gets an immediate search sent through Prowlarr and downloaded through qBittorrent the moment it appears, no manual step anywhere in between. This is the one to turn on if the goal is a server that genuinely fills itself.</li>
-</ol>
-
-<div class="box safe"><span class="lbl">Worth doing before turning this loose</span>
-An unattended list with Search on Add switched on will happily keep pulling titles for as long as the list keeps producing new ones, there's nothing built in that asks "are you sure" or checks how much space is left. Two things are worth doing up front rather than after a drive fills up: where a list type offers a limit (Trakt's lists do, capped at a number like the top 20 or 50), set one rather than leaving it unbounded, and check in on <b>Activity → Queue</b> every so often early on, just to get a feel for how quickly a given list actually adds things before trusting it fully in the background. If a specific title keeps getting pulled back in after you remove it, <b>List Exclusions</b> on the same Import Lists page blocks it permanently without needing to touch the list itself.</div>
-
-<div class="recap"><span class="lbl">Recap</span>
-<ul><li>An <b>Import List</b> is Sonarr or Radarr adding titles from an outside "popular right now" chart on its own schedule, with no one clicking Request first, unlike Jellyseerr.</li>
-<li><b>StevenLu</b> (Radarr) needs no account and is the simplest starting point; <b>Trakt</b> lists (both apps) are more tunable but need a one-time account link; <b>AniList</b> (Sonarr) is the one to aim at the Anime root folder specifically.</li>
-<li><b>Search on Add</b> is the switch that decides whether this only monitors quietly or genuinely downloads unattended; a modest Quality Profile and a list size limit are what keep it from running away with your disk space.</li></ul></div>
+The rent versus own decision you just made is the same one every organisation makes between <b>streaming or a content delivery network</b> and <b>local storage</b>, and between renting cloud capacity and buying your own hardware, an explicit cost and reliability trade in AZ-900's pricing and <b>capex versus opex</b> topics. Extending an application by dropping in a <b>plugin</b>, and wiring services together by handing one an <b>API token</b> for another, are both everyday patterns in real software integration. And <b>Docker</b> with a <b>docker-compose.yml</b> is still exactly the infrastructure as code idea behind <b>Azure Container Instances</b> and <b>Kubernetes</b> at cloud scale, describing what should run in one file rather than clicking through installs by hand.</div>
 
 <!-- ===================== DASHBOARD ===================== -->
 <h2 id="dashboard"><span class="n">11.</span>One front door for the family: a dashboard, a memorable address, and no ports</h2>
@@ -1037,7 +740,7 @@ A <b>dashboard</b> solves "where do I click", one page with an icon per service,
 <h3>Step A, the dashboard itself</h3>
 <p>Create it the same way as everything else, run from the Proxmox host:</p>
 <span class="cmd">bash -c "$(curl -fsSL https://raw.githubusercontent.com/community-scripts/ProxmoxVE/main/ct/homarr.sh)"</span>
-<p>Defaults: 2 cores, 2GB memory, 8GB disk, reached at <code>&lt;its-ip&gt;:7575</code>. Unlike Sonarr or Radarr, this one is entirely configured through its own web page rather than any config file, open it, and for each service, add a tile, give it a name and icon, and paste in its address (for example <code>http://192.168.1.97/admin</code> for Pi-hole). Drag them into whatever layout makes sense. Once it's up and working, set a DHCP reservation for it in your router, same habit as every other container.</p>
+<p>Defaults: 2 cores, 2GB memory, 8GB disk, reached at <code>&lt;its-ip&gt;:7575</code>. Unlike most of the other containers, this one is entirely configured through its own web page rather than any config file, open it, and for each service, add a tile, give it a name and icon, and paste in its address (for example <code>http://192.168.1.97/admin</code> for Pi-hole). Drag them into whatever layout makes sense. Once it's up and working, set a DHCP reservation for it in your router, same habit as every other container.</p>
 
 <h3>Step B, one name for the whole house</h3>
 <div class="box learn"><span class="lbl">Understand this: why Pi-hole is the right tool for this too</span>
@@ -1190,14 +893,12 @@ A <b>snapshot</b> saves a container's state <em>on the same disk</em>: brilliant
   <dt>Local DNS record</dt><dd>A name-to-address entry you add to Pi-hole yourself, only known inside your own house, letting a memorable name like nadrihome.com replace an IP address. Ending it in a real TLD like .com keeps browsers from treating it as a search. Can only ever hold a bare address, never a port or protocol.</dd>
   <dt>Reverse proxy</dt><dd>A container (here, Nginx Proxy Manager) that sits on the normal web port and forwards each incoming name on to the right internal container and port, which is what lets a name work with no port typed after it.</dd>
   <dt>HTTP status code / 301 redirect</dt><dd>A three-digit number every web response carries, telling the browser what happened. 301 means "moved permanently", telling the browser to automatically continue on to a new address, used here to send a bare address on to a service's real path like /admin.</dd>
-  <dt>Sonarr / Radarr</dt><dd>Apps that organise, rename and file TV shows and films into your library folder automatically, and tell Jellyfin to refresh. Neither one searches for or fetches content on its own, that's Prowlarr and qBittorrent's job.</dd>
-  <dt>Prowlarr</dt><dd>An indexer manager: the one place the list of indexers (search sources) is configured, then pushed automatically to both Sonarr and Radarr rather than being set up twice.</dd>
-  <dt>qBittorrent</dt><dd>The download client: the app that actually connects out to fetch content once Sonarr, Radarr and Prowlarr have found and requested it. Routed through the VPN since it talks directly to other people's devices.</dd>
-  <dt>Docker / Docker Compose</dt><dd>Docker runs several small, lightweight app packages (container images) inside one Linux container, sharing its resources rather than each getting a full separate one. Docker Compose is a single recipe file (docker-compose.yml) listing every app to run, what to give it access to, and how they connect, applied in one command.</dd>
-  <dt>Network namespace</dt><dd>A program's own private slice of networking. Sharing one, as qBittorrent does with gluetun, means it borrows another container's connection entirely rather than having its own, so it has nothing else to fall back to.</dd>
-  <dt>gluetun</dt><dd>A small container whose only job is holding a VPN tunnel open and enforcing a kill switch around it, used here to route qBittorrent through AirVPN.</dd>
-  <dt>Kill switch</dt><dd>A setup that blocks a container's normal internet connection entirely, leaving a VPN tunnel as the only way in or out, so nothing leaks out if the tunnel drops.</dd>
-  <dt>Indexer</dt><dd>A search source added inside Prowlarr, deciding where content is actually searched for. Deliberately left out of this guide for you to research and configure yourself.</dd>
+  <dt>Gelato</dt><dd>A Jellyfin plugin that fills your library with placeholder cards for thousands of titles and, when you press play, fetches a real stream on demand rather than storing anything. Needs Jellyfin 10.11 or newer.</dd>
+  <dt>AIOStreams</dt><dd>An adapter that gathers many separate streaming sources into one tidy, de-duplicated feed for Gelato to read from. The one piece of this route that runs as a container on your own machine.</dd>
+  <dt>Debrid / TorBox</dt><dd>A paid service that keeps a large pile of already fetched content on fast servers and serves it over an ordinary web connection, which is what makes on-demand playback instant with no seeding or stalling. TorBox is the one this build uses.</dd>
+  <dt>Stub file</dt><dd>A tiny one or two kilobyte placeholder standing in for a real media file. Gelato fills the library with these so it looks complete while almost nothing is actually stored on disk.</dd>
+  <dt>Manifest</dt><dd>The single web address AIOStreams produces once configured, which you paste into Gelato so the plugin knows where to pull its catalogue and streams from.</dd>
+  <dt>Docker / Docker Compose</dt><dd>Docker runs small, lightweight app packages (container images) inside one Linux container, sharing its resources rather than each getting a full separate one. Docker Compose is a single recipe file (docker-compose.yml) listing every app to run, what to give it access to, and how they connect, applied in one command.</dd>
   <dt>Immich / Nextcloud / Vaultwarden / Home Assistant / Uptime Kuma / Proxmox Backup Server</dt><dd>Future containers on the roadmap: private photo backup, a shared drive, a shared password manager, smart home control, a dashboard that watches your other containers, and a proper off-site backup system.</dd>
   <dt>Hypervisor</dt><dd>Software that runs multiple virtual computers on one physical machine. Proxmox is a Type 1 (bare-metal) one.</dd>
   <dt>Virtual machine (VM)</dt><dd>A software "computer" that runs its own full operating system on a hypervisor.</dd>
