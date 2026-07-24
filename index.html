@@ -993,6 +993,40 @@ Under <b>Settings → Users</b>, requests from anyone other than you default to 
 <div class="box map"><span class="lbl">You'll meet this again</span>
 <b>Docker</b> and <b>Docker Compose</b> are two of the most widely used pieces of real infrastructure anywhere, the same underlying idea behind <b>Azure Container Instances</b> and <b>Kubernetes</b> at cloud scale, describing a whole stack of small services in one file rather than clicking through installs by hand is exactly the mindset behind <b>infrastructure as code</b>. A <b>network namespace</b> is genuine Linux and cloud networking vocabulary you'll meet again in <b>Network+</b> and any container-networking topic in <b>AZ-104</b>.</div>
 
+<h3>Blind automation: letting Sonarr and Radarr fill themselves up on their own</h3>
+<div class="box learn"><span class="lbl">Understand this: an Import List is not the same thing as Jellyseerr</span>
+Jellyseerr is a person clicking "Request," one title, one decision, made by someone in the family. An <b>Import List</b> is different: it's Sonarr or Radarr itself reaching out on a schedule to some outside "what's popular right now" chart, and quietly adding every title on it that isn't already in your library, with nobody clicking anything at all. Once one is switched on, your library starts growing on its own in the background, which is exactly what "blind automation" means here, blind in the sense that nothing gets a human's eyes on it before it's added.</div>
+
+<p>Both apps keep this in the same place: <b>Settings → Import Lists → </b>the plus button to add one. The list of available list types is long, but a handful are worth trusting over the rest.</p>
+
+<p><b>For Radarr (movies):</b></p>
+<ul>
+  <li><b>StevenLu Popular Movies</b>, the simplest option worth starting with. It's a small, hand-curated feed of currently popular films, needs no account, no API key, nothing to sign up for, just add it and it works.</li>
+  <li><b>Trakt Popular</b> or <b>Trakt Trending</b>, more tunable than StevenLu (you can cap how many titles it pulls, filter by year or genre), but it needs your own Trakt account connected first, via a short device code you approve on Trakt's own website from Radarr's list settings.</li>
+</ul>
+<p><b>For Sonarr (TV and anime):</b></p>
+<ul>
+  <li><b>Trakt Popular</b> or <b>Trakt Trending</b>, the same account-linking step as Radarr, works well for ordinary TV shows.</li>
+  <li><b>AniList</b>, the one worth pointing specifically at your <b>Anime</b> root folder rather than the regular TV one. It can pull straight from AniList's own trending or popular-airing charts without needing a personal AniList account at all, which keeps it consistent with the anime/TV split already built into the library.</li>
+</ul>
+
+<p>Whichever list you add, the same handful of settings appear on its configuration page, and they're what actually decide how "blind" this gets:</p>
+<ol class="steps">
+  <li><b>Root Folder</b>, exactly like adding something by hand, point Radarr's lists at <code>/media/movies</code>, and point Sonarr's ordinary TV lists at <code>/media/tv</code> while its AniList one points at <code>/media/anime</code> instead, keeping the same split the rest of the guide has used throughout.</li>
+  <li><b>Quality Profile</b>, worth picking something modest here rather than your highest one. A list adding titles unattended has no person double-checking file sizes before they land, so a heavier profile here can fill a drive far faster than manual requests ever would.</li>
+  <li><b>Monitor</b> (Sonarr specifically also asks this per show, options like "All Episodes" versus "Future Episodes Only"), which decides how much of a show's back catalogue gets pulled in versus only new episodes going forward.</li>
+  <li><b>Minimum Availability</b> (Radarr), <code>Released</code> is the sensible default here too, same reasoning as Jellyseerr's own Radarr setup, so nothing gets chased down before it's actually out.</li>
+  <li><b>Search on Add</b>, the toggle that decides whether "blind" really means blind. Left off, the list only adds and monitors titles, nothing gets fetched until you go trigger it yourself. Switched on, every new title the list adds gets an immediate search sent through Prowlarr and downloaded through qBittorrent the moment it appears, no manual step anywhere in between. This is the one to turn on if the goal is a server that genuinely fills itself.</li>
+</ol>
+
+<div class="box safe"><span class="lbl">Worth doing before turning this loose</span>
+An unattended list with Search on Add switched on will happily keep pulling titles for as long as the list keeps producing new ones, there's nothing built in that asks "are you sure" or checks how much space is left. Two things are worth doing up front rather than after a drive fills up: where a list type offers a limit (Trakt's lists do, capped at a number like the top 20 or 50), set one rather than leaving it unbounded, and check in on <b>Activity → Queue</b> every so often early on, just to get a feel for how quickly a given list actually adds things before trusting it fully in the background. If a specific title keeps getting pulled back in after you remove it, <b>List Exclusions</b> on the same Import Lists page blocks it permanently without needing to touch the list itself.</div>
+
+<div class="recap"><span class="lbl">Recap</span>
+<ul><li>An <b>Import List</b> is Sonarr or Radarr adding titles from an outside "popular right now" chart on its own schedule, with no one clicking Request first, unlike Jellyseerr.</li>
+<li><b>StevenLu</b> (Radarr) needs no account and is the simplest starting point; <b>Trakt</b> lists (both apps) are more tunable but need a one-time account link; <b>AniList</b> (Sonarr) is the one to aim at the Anime root folder specifically.</li>
+<li><b>Search on Add</b> is the switch that decides whether this only monitors quietly or genuinely downloads unattended; a modest Quality Profile and a list size limit are what keep it from running away with your disk space.</li></ul></div>
+
 <!-- ===================== DASHBOARD ===================== -->
 <h2 id="dashboard"><span class="n">11.</span>One front door for the family: a dashboard, a memorable address, and no ports</h2>
 <p>Right now, reaching anything means knowing its exact IP address and port, which is fine for you but not realistic for the rest of the household. This section fixes that with two small pieces working together: a dashboard that turns every service into a single clickable tile, and one memorable address for the whole family to type instead of any of them.</p>
