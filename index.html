@@ -907,26 +907,26 @@ Worth setting up three separate libraries in Jellyfin too, rather than one that 
 <div class="box learn"><span class="lbl">Understand this: Prowlarr gets the same treatment as qBittorrent</span>
 So far, only qBittorrent has no network of its own, borrowing gluetun's entirely. Prowlarr still has a separate identity on the docker network, which is why it's reachable by its own name. Give it the exact same treatment as qBittorrent, sharing gluetun's network namespace instead of having one of its own, so every search it sends to an indexer travels through the VPN tunnel too, not just the actual downloads afterward.</div>
 
-<p>Edit <code>docker-compose.yml</code>. First, add Prowlarr's port to gluetun's own <code>ports</code> list, since once Prowlarr shares gluetun's network, its port has to be published from there instead:</p>
-<span class="cmd">ports:
-  - 8080:8080
-  - 9696:9696
-  - 6881:6881
-  - 6881:6881/udp</span>
-<p>Then change the Prowlarr service itself, removing its own <code>ports:</code> line entirely (it can't publish its own ports once it's borrowing gluetun's network) and giving it the same networking line qBittorrent uses:</p>
-<span class="cmd">prowlarr:
-  image: lscr.io/linuxserver/prowlarr
-  container_name: prowlarr
-  network_mode: "service:gluetun"
-  depends_on:
-    - gluetun
-  environment:
-    - PUID=1000
-    - PGID=1000
-    - TZ=Etc/UTC
-  volumes:
-    - ./prowlarr/config:/config
-  restart: unless-stopped</span>
+<p>Edit <code>docker-compose.yml</code>. First, add Prowlarr's port to gluetun's own <code>ports</code> list, since once Prowlarr shares gluetun's network, its port has to be published from there instead (this replaces gluetun's existing <code>ports:</code> block, keeping the same four-then-six-space indentation it already has):</p>
+<span class="cmd">    ports:
+      - 8080:8080
+      - 9696:9696
+      - 6881:6881
+      - 6881:6881/udp</span>
+<p>Then change the Prowlarr service itself, removing its own <code>ports:</code> line entirely (it can't publish its own ports once it's borrowing gluetun's network) and giving it the same networking line qBittorrent uses. Keep its two-space indentation lined up with the other services:</p>
+<span class="cmd">  prowlarr:
+    image: lscr.io/linuxserver/prowlarr
+    container_name: prowlarr
+    network_mode: "service:gluetun"
+    depends_on:
+      - gluetun
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Etc/UTC
+    volumes:
+      - ./prowlarr/config:/config
+    restart: unless-stopped</span>
 <p>Apply it:</p>
 <span class="cmd">docker compose up -d</span>
 <div class="why"><b>Two things change elsewhere because of this, same pattern as qBittorrent:</b> Prowlarr's own web page moves from <code>prowlarr:9696</code> to your Docker host's own address on port <code>9696</code>, since gluetun now publishes that port on its behalf. And back in Sonarr's and Radarr's Settings, wherever Prowlarr's own address was used to sync indexers down (the "Prowlarr Server" field), update it from <code>http://prowlarr:9696</code> to <code>http://gluetun:9696</code>, since Prowlarr no longer has a name of its own to be reached by.</div>
@@ -944,18 +944,19 @@ Every piece of plumbing above, the apps, how they're wired to each other, the VP
 <div class="box learn"><span class="lbl">Understand this: what Jellyseerr actually adds</span>
 Right now, adding something new to the library means going into Sonarr or Radarr yourself and adding it there. <b>Jellyseerr</b> is a small browsing and request app that sits in front of all of it: anyone in the family opens its own web page, searches for a film or show the same way they would on Jellyfin, and clicks "Request." Jellyseerr then talks to Sonarr or Radarr's own API to add and monitor that title, which flows through the exact same pipeline already built, Prowlarr's indexers, qBittorrent behind the VPN, then Jellyfin picking it up automatically. Nobody else in the house needs to know Sonarr or Radarr exist at all.</div>
 
-<p>Add it to the stack the same way as everything else. Edit <code>docker-compose.yml</code> and add this as a new service:</p>
-<span class="cmd">jellyseerr:
-  image: fallenbagel/jellyseerr:latest
-  container_name: jellyseerr
-  ports:
-    - 5055:5055
-  environment:
-    - LOG_LEVEL=info
-    - TZ=Etc/UTC
-  volumes:
-    - ./jellyseerr/config:/app/config
-  restart: unless-stopped</span>
+<p>Add it to the stack the same way as everything else. Edit <code>docker-compose.yml</code> and add this as a new service, pasting it after the <code>radarr:</code> block. Keep the same two-space indentation the other services use, its name lines up under theirs, not at the left margin, since YAML decides what belongs to what purely by indentation:</p>
+<span class="cmd">  jellyseerr:
+    image: fallenbagel/jellyseerr:latest
+    container_name: jellyseerr
+    ports:
+      - 5055:5055
+    environment:
+      - LOG_LEVEL=info
+      - TZ=Etc/UTC
+    volumes:
+      - ./jellyseerr/config:/app/config
+    restart: unless-stopped</span>
+<div class="why"><b>Why no VPN routing for this one, unlike qBittorrent and Prowlarr:</b> Jellyseerr never contacts an indexer or a tracker itself. A search inside it queries a public film-and-TV metadata catalogue (TMDB), the same sort of place Jellyfin already pulls posters from, and a request just makes an internal API call to Sonarr or Radarr, which then do the actual sourcing through Prowlarr and qBittorrent, still inside the tunnel. So the sensitive traffic stays protected exactly as before; there's nothing about Jellyseerr's own traffic the VPN was ever guarding.</div>
 <p>Apply it:</p>
 <span class="cmd">docker compose up -d</span>
 <p>Open your Docker host's own address on port <code>5055</code> and walk through its setup wizard:</p>
