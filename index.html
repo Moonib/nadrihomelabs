@@ -940,6 +940,40 @@ Every piece of plumbing above, the apps, how they're wired to each other, the VP
 <p class="q">Q2. Why does anime get its own root folder and its own Series Type rather than sitting with regular TV?</p>
 <p class="a">Anime often uses continuous "absolute" episode numbering across a whole show rather than resetting per season. Its own folder plus setting the Series Type to Anime is what makes Sonarr number and file it correctly, and it keeps Jellyfin's browsing tidy.</p></div>
 
+<h3>Giving the family a front door to request content: Jellyseerr</h3>
+<div class="box learn"><span class="lbl">Understand this: what Jellyseerr actually adds</span>
+Right now, adding something new to the library means going into Sonarr or Radarr yourself and adding it there. <b>Jellyseerr</b> is a small browsing and request app that sits in front of all of it: anyone in the family opens its own web page, searches for a film or show the same way they would on Jellyfin, and clicks "Request." Jellyseerr then talks to Sonarr or Radarr's own API to add and monitor that title, which flows through the exact same pipeline already built, Prowlarr's indexers, qBittorrent behind the VPN, then Jellyfin picking it up automatically. Nobody else in the house needs to know Sonarr or Radarr exist at all.</div>
+
+<p>Add it to the stack the same way as everything else. Edit <code>docker-compose.yml</code> and add this as a new service:</p>
+<span class="cmd">jellyseerr:
+  image: fallenbagel/jellyseerr:latest
+  container_name: jellyseerr
+  ports:
+    - 5055:5055
+  environment:
+    - LOG_LEVEL=info
+    - TZ=Etc/UTC
+  volumes:
+    - ./jellyseerr/config:/app/config
+  restart: unless-stopped</span>
+<p>Apply it:</p>
+<span class="cmd">docker compose up -d</span>
+<p>Open your Docker host's own address on port <code>5055</code> and walk through its setup wizard:</p>
+<ol class="steps">
+  <li>Choose <b>Jellyfin</b> as the media server, and enter Jellyfin's own address and an admin login to connect. Select the three libraries created earlier, Anime, TV Shows and Movies, so Jellyseerr knows what already exists.
+    <div class="why"><b>Why connect to Jellyfin at all, when requests go to Sonarr and Radarr:</b> this connection is what lets Jellyseerr show whether something's already in the library (so nobody requests a film you already have), and it's also what lets each family member sign in using their own existing Jellyfin account rather than creating a separate login for this too.</div>
+  </li>
+  <li>Under <b>Settings → Services</b>, add Sonarr, using <code>sonarr</code> as the host and <code>8989</code> as the port, along with its API key. Set the default root folder to <code>/media/tv</code>, then fill in the separate <b>Anime</b> section further down the same form with <code>/media/anime</code> as its root folder. This mirrors the anime/tv split already set up in Sonarr itself, Jellyseerr automatically detects anime by its metadata and routes it to the right folder without you doing anything extra per request.</li>
+  <li>Add Radarr the same way, host <code>radarr</code>, port <code>7878</code>, its API key, and root folder <code>/media/movies</code>.</li>
+</ol>
+<div class="box safe"><span class="lbl">Worth turning on for a family setup</span>
+Under <b>Settings → Users</b>, requests from anyone other than you default to needing your approval before they're sent onward, a genuinely sensible default for a household. You can grant specific family members permission to auto-approve their own requests later, once you trust what they're asking for, without changing anything else about how the stack works.</div>
+
+<div class="recap"><span class="lbl">Recap</span>
+<ul><li><b>Jellyseerr</b> gives the family their own browsing and request page, so nobody but you ever needs to open Sonarr or Radarr directly.</li>
+<li>A request still flows through the exact same pipeline already built, Sonarr/Radarr organise, Prowlarr's indexers find it, qBittorrent fetches it behind the VPN, Jellyfin picks it up automatically.</li>
+<li>Signing in with an existing Jellyfin account, and requiring approval by default, are the two settings that make this genuinely fit for a household rather than a single user.</li></ul></div>
+
 <div class="box map"><span class="lbl">You'll meet this again</span>
 <b>Docker</b> and <b>Docker Compose</b> are two of the most widely used pieces of real infrastructure anywhere, the same underlying idea behind <b>Azure Container Instances</b> and <b>Kubernetes</b> at cloud scale, describing a whole stack of small services in one file rather than clicking through installs by hand is exactly the mindset behind <b>infrastructure as code</b>. A <b>network namespace</b> is genuine Linux and cloud networking vocabulary you'll meet again in <b>Network+</b> and any container-networking topic in <b>AZ-104</b>.</div>
 
