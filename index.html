@@ -1020,12 +1020,21 @@ docker ps</span>
     <div class="why"><b>The part after the port is a <b>path</b>:</b> an address gets you to the machine and the port gets you to the right app on it, but many apps then keep different pages at different names underneath, written with slashes, exactly like folders. Visiting the bare address here lands somewhere unhelpful; the settings page lives at <code>/stremio/configure</code> and nowhere else. This is a normal thing for apps to do and you will meet it again.</div>
     <div class="see">You'll see: AIOStreams' configuration page.</div>
   </li>
-  <li>Find the <b>services</b> or <b>debrid</b> section, choose <b>TorBox</b>, and paste in the API token from Step B. Save.</li>
-  <li>Enable at least one <b>catalogue</b> source so there is something to search, and at least one <b>stream</b> source so there is something to play. Turn on <b>TMDB</b>, which is a large public film and television database, free to use, and it supplies the titles, posters, years and descriptions. Then turn on <b>Comet</b>, which goes looking for where a copy of a given title can actually be fetched from.
-    <div class="why"><b>Why these are two separate jobs:</b> a catalogue source knows <i>that a film exists</i>, its title, year, poster and description. A stream source knows <i>where a copy of it can actually be fetched from</i>. AIOStreams needs both, and it is entirely possible to end up with a beautiful library full of titles that will not play because only the first was configured.</div>
+  <li>Get your bearings first. Down the left of this page is a sidebar with six entries: <b>Services</b>, <b>Addons</b>, <b>Filters</b>, <b>Sorting</b>, <b>Formatter</b> and <b>Save &amp; Install</b>. You only need three of them, in that order, and the rest are for tuning later.
+    <div class="why"><b>What the six are for:</b> Services is <i>who fetches the video</i>, Addons is <i>where titles and streams are looked up</i>, and Save &amp; Install is <i>how you get the result out</i>. Filters, Sorting and Formatter only change which results you see first and how they are labelled, so leaving them untouched is a perfectly good first configuration.</div>
   </li>
-  <li>Save the configuration and copy the <b>manifest</b> link it gives you back. Paste it into your notes file.
-    <div class="why"><b>What a manifest is:</b> one web address that describes everything this addon can do and where to ask for it, the addon's own contents page. It is the single thing Gelato needs; every other setting you just made travels inside it.</div>
+  <li>Open <b>Services</b>, find <b>TorBox</b> in the list, and click the <b>cogwheel</b> at the end of its row to open its settings. Paste in the API token from Step B, then close that panel.
+    <div class="why"><b>Why a whole list of them:</b> AIOStreams supports many debrid providers and you are only using one. If you ever add a second, the order of this list is the order it prefers them in.</div>
+  </li>
+  <li>Open <b>Addons</b>, then the <b>Marketplace</b> tab inside it. Search for <b>TMDB</b>, click <b>Configure</b>, leave the options as they are, and click <b>Install</b>. Then do the same again for <b>Comet</b>.
+    <div class="why"><b>"Install" is a misleading word here:</b> nothing is downloaded onto your machine and nothing new starts running. It means adding that source to your own personal blend, which is the entire job AIOStreams does. Think of it as ticking an ingredient rather than installing a program.</div>
+    <div class="why"><b>Why you need both of them:</b> they answer different questions. <b>TMDB</b> is a large public film and television database, free to use, and it supplies the titles, posters, years and descriptions, so it knows <i>that a film exists</i>. <b>Comet</b> goes looking for <i>where a copy can actually be fetched from</i>. With only the first, you end up with a beautiful library full of titles that will not play.</div>
+  </li>
+  <li>Open <b>Save &amp; Install</b>. Set a password and click <b>Create</b>.
+    <div class="why"><b>What that password is for:</b> it locks this configuration, not the app. Anyone on your network who opens this address could otherwise change which services and sources you use, or read the token you just pasted in. The password is what stops that, so it belongs in your notes file with the rest.</div>
+  </li>
+  <li>Click <b>Install</b>, which opens a small window, and choose <b>Copy URL</b>. Paste it into your notes file. That address is the <b>manifest</b>, and it is the one thing Step F needs.
+    <div class="why"><b>What a manifest is:</b> one web address that describes everything this addon can do and where to ask for it, the addon's own contents page. Every choice you just made travels inside it, which is why Jellyfin only ever needs this single link and never needs to know about TorBox, TMDB or Comet by name.</div>
   </li>
 </ol>
 
