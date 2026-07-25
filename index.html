@@ -938,7 +938,9 @@ It is worth being clear about where each piece sits, because it is less work tha
 </ol>
 
 <h3>Step C, build the container that Docker runs in</h3>
-<p>From the Proxmox host Shell, the same place every other container was created:</p>
+<div class="box why"><span class="lbl">Skip this step if you already have one</span>
+Docker containers stack inside a single Proxmox container, so you only ever build this one once no matter how many apps you eventually run in it. If you already made one earlier, for a previous setup you have since dismantled or for anything else, do not build a second: note its ID and address from the Proxmox sidebar, confirm Docker answers inside it with the check at the end of this step, and go straight to Step D. A torn-down stack leaves the container behind quite deliberately, and it is ready to reuse.</div>
+<p>Otherwise, from the Proxmox host Shell, the same place every other container was created:</p>
 <span class="cmd">bash -c "$(curl -fsSL https://raw.githubusercontent.com/community-scripts/ProxmoxVE/main/ct/docker.sh)"</span>
 <ol class="steps">
   <li>Choose <b>Advanced</b> settings when it asks, and give it <b>2 cores, 2GB memory and 8GB disk</b>. When it offers to install Portainer or Docker Compose extras, accept <b>Docker Compose</b>; it is the recipe-file tool this section relies on.</li>
@@ -961,7 +963,12 @@ cd /opt/aiostreams</span>
 <ol class="steps">
   <li>Confirm the container's own address, because you are about to write it into a file:
     <span class="cmd">hostname -I</span>
-    <div class="see">You'll see: one address, for example <code>192.168.1.120</code>. That is the address the rest of this step uses.</div>
+    <div class="see">You'll see: one address, for example <code>192.168.1.193</code>. That is the address the rest of this step uses.</div>
+    <div class="safe"><b>Mind the capital letter.</b> Lowercase <code>hostname -i</code> is a different question and answers <code>127.0.1.1</code>, which is not a real network address at all. Anything starting <code>127.</code> is <b>loopback</b>, meaning "me, myself", and it never leaves the machine. It is the sticky note on your own front door with your own name on it: fine for you standing there, useless as directions for anyone else. Capital <code>-I</code> asks what addresses the machine is actually reachable on, which is what you need.</div>
+  </li>
+  <li>Check nothing is already sitting on port 3000, since two apps cannot share one door number:
+    <span class="cmd">docker ps --format "{{.Names}}\t{{.Ports}}"</span>
+    <div class="see">You'll see: one line per app already running in this container, with its ports. If none of them mention <code>3000</code>, you are clear. If one does, change both numbers on the <code>ports</code> line in the recipe file below and in <code>BASE_URL</code> to something free, such as <code>3001</code>.</div>
   </li>
   <li>Generate the key AIOStreams uses to encrypt its saved configurations:
     <span class="cmd">openssl rand -hex 32</span>
@@ -970,7 +977,7 @@ cd /opt/aiostreams</span>
   <li>Create the settings file that holds those values:
     <span class="cmd">nano .env</span>
     <p>Type in these three lines, swapping in your own address and the key you just generated:</p>
-    <span class="cmd">BASE_URL=http://192.168.1.120:3000
+    <span class="cmd">BASE_URL=http://192.168.1.193:3000
 SECRET_KEY=&lt;the 64 characters openssl printed&gt;
 DATABASE_URI=sqlite://./data/db.sqlite</span>
     <p>Save with <b>Ctrl+O</b>, Enter, then exit with <b>Ctrl+X</b>.</p>
