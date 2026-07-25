@@ -110,8 +110,8 @@
     <li><a href="#proxmox">Installing Proxmox: meet the hypervisor</a></li>
     <li><a href="#linux">First login: Linux, packages and the command line</a></li>
     <li><a href="#pihole">Your first container + Pi-hole: containers &amp; networking</a></li>
-    <li><a href="#storage">Storage: giving Jellyfin somewhere to live</a></li>
     <li><a href="#jellyfin">Jellyfin: watching your media (and the Fladder app)</a></li>
+    <li><a href="#storage">Storage: the big drive, and getting it inside the container</a></li>
   </ol>
   <div class="phase">Part 3 · Reach it anywhere, and make it self-sufficient</div>
   <ol start="9">
@@ -199,6 +199,8 @@ Ideas 1 to 3 are the core of the <b>CompTIA Network+</b> and the networking slic
   <li><b>Your router's admin login</b> (often on a sticker on the router). Find it now.</li>
   <li><b>A notes file</b> for addresses and passwords as you make them. Treat this as part of the skill: professionals document everything.</li>
 </ul>
+<div class="box learn"><span class="lbl">Understand this: the two kinds of thing you write down</span>
+Your notes file is about to collect two different kinds of information, and the difference matters more as you go. Most of it is <b>configuration</b>: IP addresses, port numbers, container IDs, which machine does what. None of that is dangerous on its own, and writing it down is pure benefit. A smaller amount is <b>secrets</b>: the root password, keys, and later an API token that can spend money. A secret is anything that grants access rather than describes it, and the rule that follows is simple: a secret is typed once into the machine that needs it, and otherwise lives in your notes file or a password manager and nowhere else. Not in a chat window, not in a screenshot, not in a file you later put on the internet. That distinction between config and secrets is one of the first things any real deployment separates out, and you'll see this guide keep them apart deliberately from here on.</div>
 <div class="box learn"><span class="lbl">Understand this: why wired matters</span>
 An always-on server on wifi has to keep re-negotiating a radio link that drops and shares airtime with everything else. A wired <b>ethernet</b> connection is a dedicated, stable path. In a data centre or the cloud, servers are <em>never</em> on wifi for exactly this reason. Small detail, real-world principle.</div>
 
@@ -385,9 +387,54 @@ DNS, DHCP, ports and IP addressing are the backbone of <b>CompTIA Network+</b> a
 <p class="q">Q3. Why give the Pi-hole container a reserved (fixed) IP?</p>
 <p class="a">Because the whole network will point at that address for DNS; if DHCP changed it, lookups would break. Servers need predictable addresses.</p></div>
 
+<!-- ===================== JELLYFIN ===================== -->
+<h2 id="jellyfin"><span class="n">7.</span>Jellyfin: watching your media (clients, servers, ports and transcoding)</h2>
+<p>You've built a container once, so this reinforces it, then teaches the client/server model and what "transcoding" really means. Nothing here affects the household. You are building the player first and giving it a library in the next section, because the library setup needs a container to point into and this is that container.</p>
+<ol class="steps">
+  <li>Create a second container the same way (or, since it's fiddlier to wire up the media drive and graphics, use the <b>community-scripts.org Jellyfin</b> helper and choose to enable hardware acceleration). Either way you'll get a Jellyfin address ending <code>:8096</code>.
+    <div class="why"><b>Why a helper is fine here:</b> Jellyfin plus graphics passthrough is exactly the "fiddly, low-learning" bit where a script earns its keep. You already learned container-building by hand with Pi-hole earlier; nothing lost.</div>
+  </li>
+  <li>Write down two things before you move on: the container's <b>ID number</b> (the number Proxmox shows next to it in the left-hand list, usually <code>101</code> or similar), and <b>how you created it</b>, by hand or via the helper script.
+    <div class="why"><b>Why you'll want these:</b> the next section addresses the container by that number, and the one permissions problem you might hit there has two different fixes depending on which way you made it. Thirty seconds now saves a confusing ten minutes later.</div>
+  </li>
+  <li>Open the <code>:8096</code> address and create your admin account. When the setup wizard asks you to add a media library, <b>skip it</b> and finish the wizard; you'll come back and add it properly in the next section.
+    <div class="why"><b>Why skip it:</b> the folder you want to point at doesn't exist inside this container yet. Adding a library now means pointing at an empty path and then editing it later, which is just the same job done twice.</div>
+  </li>
+  <li>Install the free <b>Jellyfin</b> app on a TV or phone, enter the server address and sign in.
+    <div class="see">You'll see: an empty library and a working connection. Empty is the correct result at this point. Proving the app reaches the server now means that if something breaks after you add the drive, you already know the network side was fine.</div>
+  </li>
+</ol>
+
+<div class="box learn"><span class="lbl">Understand this: the client/server model, and transcoding</span>
+Jellyfin shows you the pattern behind almost all software you use. The <b>server</b> (on your box, port 8096) holds the data and does the work; the <b>client</b> (the app on your TV) requests it. Your web browser and websites, your email app and mail servers, all work this way.
+<br><br><b>Transcoding</b> is converting video from one format or quality to another on the fly, because your phone on 4G can't handle the same huge file your TV can. Doing that maths on the main processor (CPU) is slow and heavy. <b>Quick Sync</b> is a dedicated video-processing circuit built into the Intel chip's graphics that does it far more efficiently. Choosing to offload work to specialised hardware instead of the general CPU is a real architecture decision you'll see again (it's also why AI uses GPUs).</div>
+
+<div class="box map"><span class="lbl">You'll meet this again</span>
+Client/server, ports and services are foundational to <b>everything</b>, and "hardware acceleration / offloading" connects straight to why cloud providers rent GPU instances. When AZ-900 lists Azure's specialised compute options, you'll recognise the same idea you used for Jellyfin.</div>
+
+<div class="recap"><span class="lbl">Recap</span>
+<ul><li>Software is mostly <b>client/server</b>: a server provides, a client consumes, over a port.</li>
+<li><b>Transcoding</b> reshapes video on the fly; <b>Quick Sync</b> offloads it to purpose-built hardware.</li></ul></div>
+
+<div class="quiz"><span class="lbl">Check yourself</span>
+<p class="q">Q1. In the client/server model, which side is the Jellyfin app on your phone, and which side is on your OptiPlex?</p>
+<p class="a">The phone app is the client (requests and plays); the OptiPlex runs the server (stores the media and serves it).</p>
+<p class="q">Q2. Why is hardware transcoding (Quick Sync) better than making the CPU do it?</p>
+<p class="a">Quick Sync is dedicated video hardware that does the conversion far more efficiently, freeing the CPU and letting more people stream at once.</p></div>
+
+<h3>A nicer way to watch: the Fladder app</h3>
+<div class="box plain"><span class="lbl">What this actually is</span>
+Jellyfin already has its own apps and its own web page. Fladder is simply a different app, built by a different team, that talks to the exact same Jellyfin server underneath. Nothing about your library, your accounts, or your files changes by adding it, it's a different front door onto the same building, not a new building.</div>
+<p>It can be added as its own small container using the same community-scripts pattern as before, run from the Proxmox host:</p>
+<span class="cmd">bash -c "$(curl -fsSL https://raw.githubusercontent.com/community-scripts/ProxmoxVE/main/ct/fladder.sh)"</span>
+<p>Accept the defaults, open the address it gives you, and point it at your existing Jellyfin server and account. Worth trying for two genuinely useful things the standard Jellyfin apps don't do as well: real offline downloads (so a film keeps playing with no connection at all, useful on a journey), and automatic skipping of intros and credits. It's optional polish, not a required piece, so it's fine to skip for now and come back to it.</p>
+
 <!-- ===================== STORAGE ===================== -->
-<h2 id="storage"><span class="n">7.</span>Storage: giving Jellyfin somewhere to live</h2>
-<p>Your SSD runs the system; this new hard drive holds the media. Before Jellyfin can use it you have to prepare the drive, attach it into Linux, and open a controlled doorway from the host into the Jellyfin container. Do this once Proxmox is running and after the Jellyfin container exists, so you have something to point it at.</p>
+<h2 id="storage"><span class="n">8.</span>Storage: the big drive, and getting it inside the container</h2>
+<p>Your SSD runs the system; this new hard drive holds files. Jellyfin exists now but has nowhere to look, so this section prepares the drive, attaches it into Linux, and opens a controlled doorway from the host into the container you just built. Four jobs in order: make the drive usable, mount it, share it in, then point Jellyfin at it.</p>
+
+<div class="box plain"><span class="lbl">What actually ends up on this drive</span>
+Worth setting expectations, because it changes what size you need. Later in this guide your film and series library is <b>streamed on demand</b> rather than downloaded, so the library itself takes up almost nothing: a few kilobytes per title. This drive is for the things that do live on your machine, which is anything you own or rip yourself, your Jellyfin metadata and artwork, container backups, and the tiny placeholder files the streaming setup writes. You still want a proper drive and you still need every skill in this section, but you are not filling eight terabytes with films, and you should not buy on that assumption.</div>
 
 <div class="box learn"><span class="lbl">Understand this: SSD for the system, hard drive for the data</span>
 Two jobs, two kinds of drive. Your <b>SSD</b> is fast but small: ideal for the operating system and apps that do constant small reads and writes. Your <b>NAS hard drive</b> is big and cheap per terabyte: ideal for bulk media that's read in long steady streams and doesn't need speed. Splitting "fast small disk for the system" from "big cheap disk for the data" is a standard design you'll see everywhere, including cloud VMs, which pair a small <b>OS disk</b> with larger attached <b>data disks</b> for exactly this reason.</div>
@@ -436,19 +483,28 @@ mount /dev/sdb /mnt/media</span>
 <div class="box learn"><span class="lbl">Understand this: why the container can't see the drive yet</span>
 Remember, a container is deliberately walled off from the host; that isolation is the point. So even though the host can now see <code>/mnt/media</code>, your Jellyfin container cannot, by design. You open one specific, controlled doorway called a <b>bind mount</b>: it makes a single host folder appear inside the container. You're not exposing the whole host, just sharing the one media folder in.</div>
 <ol class="steps">
-  <li>Find your Jellyfin container's ID (the number next to it in Proxmox, e.g. <code>101</code>), then from the host Shell attach the folder into it:
+  <li>Use the Jellyfin container ID you noted in the previous section (e.g. <code>101</code>), then from the host Shell attach the folder into it:
     <span class="cmd">pct set 101 -mp0 /mnt/media,mp=/media</span>
     <div class="why"><b>Reading it:</b> <code>pct</code> is Proxmox's container tool. This says "for container 101, add mount point 0: share the host's <code>/mnt/media</code> so it appears inside as <code>/media</code>." Now your big drive is visible at <code>/media</code> from inside Jellyfin.</div>
   </li>
+  <li>Restart the container so it picks the new mount up, then check it landed:
+    <span class="cmd">pct reboot 101
+pct exec 101 -- ls -la /media</span>
+    <div class="see">You'll see: a listing of the folder. If it says <code>No such file or directory</code>, the mount point didn't apply, so re-check the container number in the command above.</div>
+  </li>
 </ol>
 
-<div class="box safe"><span class="lbl">The genuinely fiddly bit: permissions</span>
-One real gotcha. For security, "unprivileged" containers remap their internal user accounts to different numbers on the host, so the container can be blocked from reading the shared folder even though it's right there. The fix is a one-line ownership or mapping tweak, but which one depends on how your Jellyfin container was created (helper script or by hand). Rather than guess and have it silently not work, note where you are when you hit this and confirm how you made the container; the exact command is a 30-second job once that's known.</div>
+<div class="box safe"><span class="lbl">You may hit this here: the container can see the folder but can't read it</span>
+This is the one predictable snag in the whole section, so here it is before it happens rather than after. For security, "unprivileged" containers remap their internal user accounts to different numbers on the host. The folder appears inside the container, but the container's own user may not own it, so Jellyfin finds an empty library or throws a permission error when it scans. <b>The symptom is a library that scans instantly and finds nothing, even though you can see the files from the host.</b> The fix is a one-line ownership or ID-mapping change, but which one depends on whether you made the container by hand or with the helper script, which is why you wrote that down. If you see it, say so and fix it deliberately rather than guessing; it's a thirty-second job once you know which case you're in, and permission models like this are worth understanding rather than working around.</div>
 
 <h3>Step E, point Jellyfin at it</h3>
 <ol class="steps">
-  <li>In Jellyfin's web page, add or edit your media <b>library</b> and set its folder to <code>/media</code> (or a subfolder like <code>/media/films</code>). Copy some video files onto the drive and let Jellyfin scan.
-    <div class="see">You'll see: your films and shows appear in Jellyfin, now served from the big drive with terabytes to grow into.</div>
+  <li>Make a folder on the drive for the things you actually own, from the host Shell:
+    <span class="cmd">mkdir -p /mnt/media/films</span>
+    <div class="why"><b>Why a subfolder and not the drive root:</b> a mounted ext4 drive has a <code>lost+found</code> folder at its top level, and pointing a library straight at the root means Jellyfin tries to scan that too. Keeping libraries in named subfolders also means one drive can hold several without them getting tangled.</div>
+  </li>
+  <li>In Jellyfin's web page, go to <b>Dashboard</b>, then <b>Libraries</b>, add a library and set its folder to <code>/media/films</code>. Copy a video file or two onto the drive and let it scan.
+    <div class="see">You'll see: your files appear in Jellyfin, served from the big drive. Play one, ideally in a browser first, to confirm the whole chain works before you involve a TV app.</div>
   </li>
 </ol>
 
@@ -468,41 +524,6 @@ Filesystems, mounting, <code>/etc/fstab</code> and the single-tree layout are co
 <p class="a">It writes a filesystem (like ext4) onto the raw disk: the structure that lets the system store and find files. Until then the drive can't hold anything.</p>
 <p class="q">Q3. The Jellyfin container can't see the drive even though the host can. Why, and what opens it up?</p>
 <p class="a">Containers are isolated from the host by design, so they can't see host drives automatically. A bind mount shares a specific host folder (here /mnt/media) into the container (as /media).</p></div>
-
-<!-- ===================== JELLYFIN ===================== -->
-<h2 id="jellyfin"><span class="n">8.</span>Jellyfin: watching your media (clients, servers, ports and transcoding)</h2>
-<p>You've built a container once, so this reinforces it, then teaches the client/server model and what "transcoding" really means. Nothing here affects the household.</p>
-<ol class="steps">
-  <li>Create a second container the same way (or, since it's fiddlier to wire up the media drive and graphics, use the <b>community-scripts.org Jellyfin</b> helper and choose to enable hardware acceleration). Either way you'll get a Jellyfin address ending <code>:8096</code>.
-    <div class="why"><b>Why a helper is fine here:</b> Jellyfin plus graphics passthrough is exactly the "fiddly, low-learning" bit where a script earns its keep. You already learned container-building by hand with Pi-hole earlier; nothing lost.</div>
-  </li>
-  <li>Open the <code>:8096</code> address, create your admin account, and point Jellyfin at your media drive: set the library folder to <code>/media</code> (the drive you prepared in the previous section).</li>
-  <li>Install the free <b>Jellyfin</b> app on a TV/phone, enter the server address, sign in, press play.</li>
-</ol>
-
-<div class="box learn"><span class="lbl">Understand this: the client/server model, and transcoding</span>
-Jellyfin shows you the pattern behind almost all software you use. The <b>server</b> (on your box, port 8096) holds the data and does the work; the <b>client</b> (the app on your TV) requests it. Your web browser and websites, your email app and mail servers, all work this way.
-<br><br><b>Transcoding</b> is converting video from one format or quality to another on the fly, because your phone on 4G can't handle the same huge file your TV can. Doing that maths on the main processor (CPU) is slow and heavy. <b>Quick Sync</b> is a dedicated video-processing circuit built into the Intel chip's graphics that does it far more efficiently. Choosing to offload work to specialised hardware instead of the general CPU is a real architecture decision you'll see again (it's also why AI uses GPUs).</div>
-
-<div class="box map"><span class="lbl">You'll meet this again</span>
-Client/server, ports and services are foundational to <b>everything</b>, and "hardware acceleration / offloading" connects straight to why cloud providers rent GPU instances. When AZ-900 lists Azure's specialised compute options, you'll recognise the same idea you used for Jellyfin.</div>
-
-<div class="recap"><span class="lbl">Recap</span>
-<ul><li>Software is mostly <b>client/server</b>: a server provides, a client consumes, over a port.</li>
-<li><b>Transcoding</b> reshapes video on the fly; <b>Quick Sync</b> offloads it to purpose-built hardware.</li></ul></div>
-
-<div class="quiz"><span class="lbl">Check yourself</span>
-<p class="q">Q1. In the client/server model, which side is the Jellyfin app on your phone, and which side is on your OptiPlex?</p>
-<p class="a">The phone app is the client (requests and plays); the OptiPlex runs the server (stores the media and serves it).</p>
-<p class="q">Q2. Why is hardware transcoding (Quick Sync) better than making the CPU do it?</p>
-<p class="a">Quick Sync is dedicated video hardware that does the conversion far more efficiently, freeing the CPU and letting more people stream at once.</p></div>
-
-<h3>A nicer way to watch: the Fladder app</h3>
-<div class="box plain"><span class="lbl">What this actually is</span>
-Jellyfin already has its own apps and its own web page. Fladder is simply a different app, built by a different team, that talks to the exact same Jellyfin server underneath. Nothing about your library, your accounts, or your files changes by adding it, it's a different front door onto the same building, not a new building.</div>
-<p>It can be added as its own small container using the same community-scripts pattern as before, run from the Proxmox host:</p>
-<span class="cmd">bash -c "$(curl -fsSL https://raw.githubusercontent.com/community-scripts/ProxmoxVE/main/ct/fladder.sh)"</span>
-<p>Accept the defaults, open the address it gives you, and point it at your existing Jellyfin server and account. Worth trying for two genuinely useful things the standard Jellyfin apps don't do as well: real offline downloads (so a film keeps playing with no connection at all, useful on a journey), and automatic skipping of intros and credits. It's optional polish, not a required piece, so it's fine to skip for now and come back to it.</p>
 
 <!-- ===================== REMOTE ===================== -->
 <div class="partbar">Part 3 · Reach it anywhere, and make it self-sufficient</div>
@@ -706,10 +727,16 @@ It is worth being clear about where each piece actually lives, because it is les
 <p>The exact commands, tokens and screens for each of these get filled into this section as we do them together, the same way every other part of this guide was written from the real steps rather than ahead of them. What follows is the shape of the build so the whole path is visible before the first click.</p>
 <ol class="steps">
   <li><b>Confirm Jellyfin is 10.11 or newer</b>, updating it first if not. This is the gate for everything else, so it is settled before anything is bought or built.</li>
-  <li><b>Create a TorBox account</b> and get its <b>API token</b>. This is the paid engine, and its token is the single credential the rest of the setup hands around, so it is worth storing in your notes file the moment you have it, the same documentation habit as every password so far.</li>
-  <li><b>Deploy AIOStreams</b> as a container in your existing Docker box, then open its configuration page and give it two things: your TorBox token, so it knows which engine to resolve streams through, and at least one search source so it has a catalogue to show. It hands back a single web address called a <b>manifest</b>, which is the one link Gelato needs.</li>
+  <li><b>Create a TorBox account</b> and get its <b>API token</b>. This is the paid engine, and its token is the single credential the rest of the setup hands around.
+    <div class="why"><b>Treat this one as a secret, not as config:</b> the token is not a password you type at a login box, it is a key that grants full access to a paid account to whoever holds it. It goes into your notes file, and from there it is pasted directly into the one screen that needs it. Not into a chat window, not into a screenshot, not into a message to someone helping you. If it ever does leak, TorBox lets you regenerate it, which instantly invalidates the old one; that is the right move and it costs you nothing but re-pasting it.</div>
+  </li>
+  <li><b>Deploy AIOStreams</b> as a container in your existing Docker box, then open its configuration page and give it two things: your TorBox token, so it knows which engine to resolve streams through, and at least one search source so it has a catalogue to show. It hands back a single web address called a <b>manifest</b>, which is the one link Gelato needs.
+    <div class="why"><b>Where its own secrets live:</b> AIOStreams needs a couple of settings of its own, and this is where you meet the standard way software handles that. Rather than writing them into the <code>docker-compose.yml</code> recipe, they go in a separate plain text file called <code>.env</code> sitting beside it, holding one <code>NAME=value</code> per line. The recipe file describes how the app runs and is safe to share or publish; the <code>.env</code> file holds the parts that grant access and is never shared. This is the same config-versus-secrets split from the prep section, now enforced by two different files, and it is why almost every real project's ignore list starts with <code>.env</code>.</div>
+  </li>
   <li><b>Install the Gelato plugin in Jellyfin</b>, by adding its plugin repository under <b>Dashboard, Plugins, Repositories</b>, installing Gelato from the catalogue, and restarting Jellyfin when it asks. Then paste the AIOStreams manifest into Gelato's settings so the plugin knows where to get its catalogue and streams.</li>
-  <li><b>Give Gelato its own library folders</b>, one for films and a separate one for shows, kept apart from any real media, since a single folder shared between the two is the most common thing that trips Gelato up. Point a new Jellyfin <b>Movies</b> library and a new <b>Shows</b> library at those folders so the stub cards appear in their own clean rows.</li>
+  <li><b>Give Gelato its own library folders</b>, one for films and a separate one for shows, kept apart from any real media, since a single folder shared between the two is the most common thing that trips Gelato up. Point a new Jellyfin <b>Movies</b> library and a new <b>Shows</b> library at those folders so the stub cards appear in their own clean rows.
+    <div class="why"><b>You may hit this here:</b> if films and series share one folder, Gelato does not throw an error. It fills the library anyway and the result looks half right, with series appearing as single films, episodes missing, or artwork attached to the wrong thing. Because there is no error message to search for, this is the one worth getting right on the first pass rather than debugging afterwards. Two folders, two libraries, kept away from the folder holding any real media you own.</div>
+  </li>
   <li><b>Test one play</b>, end to end: open Jellyfin, pick a title Gelato has filled in, and press play. A working setup starts the stream within a few seconds, served through your debrid engine, with nothing downloaded to disk. That first successful play is the proof the whole chain is wired correctly.</li>
 </ol>
 
