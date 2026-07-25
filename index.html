@@ -473,7 +473,21 @@ This is <b>IaaS (Infrastructure as a Service)</b> from the ground up, an explici
   <li>Click your node, then <b>Shell</b>. A black terminal opens. Type <code>hostnamectl</code> and press Enter.
     <div class="why"><b>What you just did:</b> the <b>Shell</b> is a command-line terminal <em>on the server itself</em>. <code>hostnamectl</code> prints system info. You're now "in" a Linux machine, typing commands, the way most of the server world is actually run.</div>
   </li>
+  <li>Find out where you are standing, and what is around you:
+    <span class="cmd">pwd
+ls -la</span>
+    <div class="see">You'll see: <code>/root</code> from the first, and a short listing from the second. <code>pwd</code> is print working directory, and <code>ls</code> lists what is in it. The <code>-l</code> asks for the detailed one-per-line form and the <code>-a</code> includes hidden entries.</div>
+  </li>
+  <li>Now look at the top of the filesystem instead, without moving:
+    <span class="cmd">ls -la /</span>
+    <div class="see">You'll see: a completely different and much longer list, with <code>etc</code>, <code>opt</code>, <code>media</code>, <code>home</code> and others.</div>
+  </li>
 </ol>
+
+<div class="box learn"><span class="lbl">Understand this: where a command looks, and the two ways to say where</span>
+Every command you type happens somewhere. When you log in you are placed in <code>/root</code>, the root user's own folder, and a bare <code>ls</code> lists that and nothing else. This catches people out constantly: you know a folder exists, you run <code>ls</code>, it is not there, and the folder is fine. You were simply standing somewhere else. It is the same as opening your Documents folder and being surprised not to find Program Files in it.<br><br>
+There are two ways to name a location, and the difference is one character. A path beginning with a slash, like <code>/media</code>, is an <b>absolute path</b>: start at the very top of the filesystem and work down, which means the same place no matter where you are standing when you type it. A path with no leading slash, like <code>media</code>, is a <b>relative path</b>: a folder of that name inside wherever you happen to be right now. So <code>cd /media</code> always works and <code>cd media</code> only works if you are in the one place that contains it.<br><br>
+Two shorthands go with this and appear constantly: <code>.</code> means "right here" and <code>..</code> means "one level up", so <code>cd ..</code> steps back out of a folder. When something does not behave as expected, <code>pwd</code> is almost always the first thing worth typing.</div>
 
 <div class="box learn"><span class="lbl">Understand this: how Linux installs software (this is a big one)</span>
 On Windows you download an <code>.exe</code> and double-click. Linux mostly uses a <b>package manager</b>: a built-in tool that fetches software from trusted online <b>repositories</b> (curated software libraries) and installs it with dependencies handled for you. Proxmox is Debian-based, so its package manager is <b>apt</b>. Two commands do almost everything:
