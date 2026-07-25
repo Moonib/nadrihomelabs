@@ -941,7 +941,12 @@ It is worth being clear about where each piece sits, because it is less work tha
 <p>From the Proxmox host Shell, the same place every other container was created:</p>
 <span class="cmd">bash -c "$(curl -fsSL https://raw.githubusercontent.com/community-scripts/ProxmoxVE/main/ct/docker.sh)"</span>
 <ol class="steps">
-  <li>Choose <b>Advanced</b> settings when it asks, and give it <b>2 cores, 2GB memory and 8GB disk</b>. When it offers to install Portainer or Docker Compose extras, accept <b>Docker Compose</b>; it is the recipe-file tool this section relies on.</li>
+  <li>Choose <b>Advanced</b> settings when it asks, and give it <b>2 cores, 2GB memory and 8GB disk</b>.</li>
+  <li>The script then asks three questions in a row. Answer <b>y</b> to Portainer, and <b>n</b> to the Portainer Agent and to exposing the Docker TCP socket.
+    <div class="why"><b>What you just agreed to:</b> <b>Portainer</b> is a web page for looking at Docker, reached at <code>&lt;its-address&gt;:9443</code>. Everything you run still gets defined in a recipe file you wrote, and Portainer is simply a window onto it where you can see what is running, read an app's logs and restart something without opening a shell. Worth having, as long as you keep defining things in the file rather than clicking them into existence in the window, because anything created by clicking exists nowhere in writing and cannot be rebuilt from memory later.</div>
+    <div class="safe"><b>Why the other two are no:</b> the <b>Agent</b> is for a Portainer running on some other machine reaching in to manage this one, which is why the script only offers it if you declined Portainer itself; you have no such machine. The <b>TCP socket</b> is labelled insecure by the script for good reason: it opens control of Docker to the network with no password whatsoever, so anything on your network could start, stop or replace any app in this container. Answer <b>n</b>.</div>
+  </li>
+  <li>Docker Compose, the recipe-file tool the rest of this section relies on, is installed as standard and is not one of the questions. The version check at the end of this step confirms it.</li>
   <li>When the script finishes it prints the new container's ID and address. Write both into your notes file.
     <div class="why"><b>Why the address matters more here than usual:</b> AIOStreams writes its own address into every link it hands out, including the one link Gelato needs. If you do not know the address before you configure it, you will configure it wrong and have to redo it.</div>
   </li>
