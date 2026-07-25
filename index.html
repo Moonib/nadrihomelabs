@@ -1030,11 +1030,12 @@ docker ps</span>
     <div class="why"><b>"Install" is a misleading word here:</b> nothing is downloaded onto your machine and nothing new starts running. It means adding that source to your own personal blend, which is the entire job AIOStreams does. Think of it as ticking an ingredient rather than installing a program.</div>
     <div class="why"><b>Why you need both of them:</b> they answer different questions. <b>TMDB</b> is a large public film and television database, free to use, and it supplies the titles, posters, years and descriptions, so it knows <i>that a film exists</i>. <b>Comet</b> goes looking for <i>where a copy can actually be fetched from</i>. With only the first, you end up with a beautiful library full of titles that will not play.</div>
   </li>
-  <li>Open <b>Save &amp; Install</b>. Set a password and click <b>Create</b>.
-    <div class="why"><b>What that password is for:</b> it locks this configuration, not the app. Anyone on your network who opens this address could otherwise change which services and sources you use, or read the token you just pasted in. The password is what stops that, so it belongs in your notes file with the rest.</div>
+  <li>Open <b>Save &amp; Install</b>, the last entry in the sidebar. Under <b>Save Configuration</b>, set a password and click <b>Save</b>.
+    <div class="why"><b>What that password is for:</b> it locks this configuration, not the app. Anyone on your network who opens this address could otherwise change which services and sources you use, or read the token you pasted in earlier. It also comes back out with the <b>UUID</b> shown just above it, and those two together are what let you return and edit this configuration later, so both belong in your notes file.</div>
   </li>
-  <li>Click <b>Install</b>, which opens a small window, and choose <b>Copy URL</b>. Paste it into your notes file. That address is the <b>manifest</b>, and it is the one thing Step F needs.
+  <li>Under <b>Installation Options</b>, find <b>Direct Manifest URL</b> on the right and copy it. Paste it into your notes file. That address is the <b>manifest</b>, and it is the one thing Step F needs. Ignore the <b>Install to Stremio</b> buttons beside it; those are for people using Stremio as their player rather than Jellyfin.
     <div class="why"><b>What a manifest is:</b> one web address that describes everything this addon can do and where to ask for it, the addon's own contents page. Every choice you just made travels inside it, which is why Jellyfin only ever needs this single link and never needs to know about TorBox, TMDB or Comet by name.</div>
+    <div class="safe"><b>Treat this link as a credential, not an address.</b> Your configuration's identifier is part of the URL itself, so anyone holding it can use your setup and therefore your paid TorBox access. It goes in your notes file and gets pasted into Jellyfin, and nowhere else. If it ever gets out, come back here, save with a new password, and the old link stops being useful.</div>
   </li>
 </ol>
 
