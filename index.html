@@ -955,36 +955,41 @@ It is worth being clear about where each piece sits, because it is less work tha
     <span class="cmd">pct enter &lt;its-id&gt;
 docker --version
 docker compose version</span>
+    <div class="why"><b>A new one of the <code>pct</code> family:</b> in the storage section you used <code>pct exec</code> to fire a single command into a container from outside it. <code>pct enter</code> is the other half: instead of shouting one instruction through the door, you walk in and stay. Your prompt changes to that container's name, and from then on everything you type happens inside it until you type <code>exit</code>. Everything in Step D is typed in here, not on the host, and mixing the two up is the single easiest way to end up with files in the wrong machine.</div>
     <div class="see">You'll see: two version lines, one for Docker and one for Compose. If either says "command not found", the script did not finish; re-run it rather than trying to patch it by hand.</div>
   </li>
 </ol>
 
 <h3>Step D, deploy AIOStreams</h3>
-<p>Everything in this step is typed inside the Docker container, not on the Proxmox host. Make a home for it first:</p>
+<p>Everything in this step is typed inside the Docker container you just walked into, not on the Proxmox host. Make a home for it first:</p>
 <span class="cmd">mkdir -p /opt/aiostreams
 cd /opt/aiostreams</span>
+<div class="why"><b>Why here, and what the <code>-p</code> is doing:</b> <code>/opt</code> is Linux's conventional drawer for software that did not come from the package manager you met in the first Linux section, so hand-built things like this live there by custom rather than by rule. <code>mkdir</code> makes a folder and <code>-p</code> tells it to create any missing parent folders on the way rather than complaining, which also makes it harmless to run twice. A trailing letter or word after a command with a dash in front of it is called a <b>flag</b>, and it modifies how that command behaves; you have already used several without them being named.</div>
 <ol class="steps">
   <li>Confirm the container's own address, because you are about to write it into a file:
     <span class="cmd">hostname -I</span>
     <div class="see">You'll see: one address, for example <code>192.168.1.193</code>. That is the address the rest of this step uses.</div>
   </li>
-  <li>Generate the key AIOStreams uses to encrypt its saved configurations:
+  <li>Generate the key AIOStreams uses to scramble its saved settings:
     <span class="cmd">openssl rand -hex 32</span>
-    <div class="undo"><b>Copy this into your notes now, and never change it afterwards.</b> AIOStreams encrypts every saved configuration with this key. Changing it later does not reset anything, it makes every existing configuration permanently unreadable, including the link Gelato is using. There is no recovery from that beyond setting the whole thing up again from scratch.</div>
+    <div class="why"><b>What you just ran:</b> <b>OpenSSL</b> is the standard toolkit every Linux machine carries for encryption work, and it is already installed. <code>rand</code> asks it for random data, <code>32</code> asks for 32 bytes of it, and <code>-hex</code> asks for that written out in <b>hexadecimal</b>, a way of writing numbers using sixteen digits (0 to 9, then a to f) instead of ten, which is how computers' raw data is normally shown in text. Each byte becomes two characters, which is why 32 bytes prints as 64 characters. Randomness is the entire point: a key you invented yourself would be guessable, and this one is not.</div>
+    <div class="why"><b>What "encrypt" means here, plainly:</b> AIOStreams stores your settings scrambled rather than in readable text, and this key is the only thing that unscrambles them. It is not a password you will ever be asked to type. It is more like the cut of a physical key: the lock does not check who you are, it only fits one shape.</div>
+    <div class="undo"><b>Copy this into your notes now, and never change it afterwards.</b> Changing it later does not reset anything, it makes every existing setting permanently unreadable, including the link Jellyfin will be relying on. There is no recovery from that beyond setting the whole thing up again from scratch.</div>
   </li>
-  <li>Create the settings file that holds those values:
+  <li>Create the settings file, using the same editor you used for <code>fstab</code> back in the storage section:
     <span class="cmd">nano .env</span>
     <p>Type in these three lines, swapping in your own address and the key you just generated:</p>
     <span class="cmd">BASE_URL=http://192.168.1.193:3000
 SECRET_KEY=&lt;the 64 characters openssl printed&gt;
 DATABASE_URI=sqlite://./data/db.sqlite</span>
     <p>Save with <b>Ctrl+O</b>, Enter, then exit with <b>Ctrl+X</b>.</p>
-    <div class="why"><b>What each line does:</b> <code>BASE_URL</code> is the full address AIOStreams stamps into every link it produces, which is why it needs the protocol, the address and the port all three. <code>SECRET_KEY</code> is the encryption key from the previous step. <code>DATABASE_URI</code> tells it where to keep its own small database; <b>SQLite</b> is a database that is just a single file on disk rather than a service you run separately, which is exactly right for one instance serving one household.</div>
-    <div class="why"><b>Why a separate file at all:</b> these could technically be written into the recipe file below, but they are not, and this is the standard way software handles the split. The recipe file describes <i>how the app runs</i> and is safe to share or publish; the <code>.env</code> file holds the parts that <i>grant access</i> and is never shared. Same config-versus-secrets split from the prep section, now enforced by two different files, and it is why almost every real project's ignore list starts with <code>.env</code>.</div>
+    <div class="why"><b>The name really is just a dot:</b> a filename beginning with a dot is <b>hidden</b> in Linux, which means a plain <code>ls</code> will not show it and you may think the file never saved. <code>ls -a</code> shows everything including hidden files. Nothing is secured by being hidden, it is only out of the way; the convention exists so config files do not clutter a folder listing. <b>env</b> is short for environment, the set of named values a program can read when it starts.</div>
+    <div class="why"><b>What each line does:</b> <code>BASE_URL</code> is the return address AIOStreams stamps onto every link it produces, which is why it needs all three parts, the <code>http://</code>, the address and the port, exactly as you type an address into a browser. <code>SECRET_KEY</code> is the key from the previous step. <code>DATABASE_URI</code> says where to keep its records; <b>SQLite</b> is a database that is nothing more than a single file sitting on disk rather than a separate service you have to run and look after, which is the right size for one household.</div>
+    <div class="why"><b>Why a separate file at all:</b> these could be written straight into the recipe file below, but they are not, and this split is the standard way software handles it. The recipe file describes <i>how the app runs</i> and is safe to share or publish; the <code>.env</code> file holds the parts that <i>grant access</i> and is never shared. It is the same config-versus-secrets distinction from the prep section, now enforced by two different files rather than by memory, and it is why almost every real project's ignore list starts with <code>.env</code>.</div>
   </li>
   <li>Create the recipe file beside it:
     <span class="cmd">nano compose.yaml</span>
-    <p>Type in exactly this, minding the indentation, since this file format cares about it:</p>
+    <p>Type in exactly this. The indentation is not decoration, so keep the spacing as shown:</p>
     <span class="cmd">services:
   aiostreams:
     image: ghcr.io/viren070/aiostreams:latest
@@ -997,12 +1002,15 @@ DATABASE_URI=sqlite://./data/db.sqlite</span>
     volumes:
       - ./data:/app/data</span>
     <p>Save and exit the same way.</p>
-    <div class="why"><b>Reading it line by line:</b> <code>image</code> is which prebuilt app package to fetch and from where. <code>restart: unless-stopped</code> means it comes back on its own after a reboot or a crash, unless you deliberately stopped it. <code>ports</code> maps port 3000 inside the app out to port 3000 on the container, which is how anything else on your network can reach it. <code>env_file</code> pulls in the <code>.env</code> you just wrote. <code>volumes</code> keeps the app's data in a real folder on disk (<code>./data</code>) rather than inside the disposable app package, so tearing the app down and rebuilding it does not lose your configuration.</div>
+    <div class="why"><b>Why the spacing matters:</b> this file is written in <b>YAML</b>, a plain text format built around indentation. Where most formats use brackets to show what belongs inside what, YAML uses how far in a line starts, the way an indented list in a document shows sub-points belonging to the point above. So <code>image</code> being indented under <code>aiostreams</code> is what makes it a setting <i>of</i> aiostreams. Get the spacing wrong and the file is not merely untidy, it means something different or refuses to load. Spaces only, never tab characters.</div>
+    <div class="why"><b>Reading it line by line:</b> <code>services</code> lists the apps this file describes, and <code>aiostreams</code> is the only one for now, which is exactly how you add a second app later, as another block beneath it. <code>image</code> names which prebuilt app package to fetch and from where; a <b>container image</b> is a ready-made, self contained copy of an app and everything it needs, published for anyone to download, which is why there is nothing to install by hand. <code>restart: unless-stopped</code> means it comes back on its own after a reboot or a crash, unless you deliberately stopped it. <code>env_file</code> pulls in the <code>.env</code> you just wrote.</div>
+    <div class="why"><b>The two lines with a colon in the middle are the same idea you already met:</b> in the storage section you opened a doorway from the host into the Jellyfin container, so a folder on one side appeared at a different path on the other. <code>ports</code> and <code>volumes</code> do exactly that for Docker, and both read <i>outside on the left, inside on the right</i>. <code>3000:3000</code> means port 3000 on the container is a doorway to port 3000 inside the app, which is how anything else on your network reaches it. <code>./data:/app/data</code> means the folder <code>data</code> sitting beside this file (the <code>./</code> is shorthand for "right here") appears as <code>/app/data</code> inside the app. That second one is what keeps your settings when the app itself is thrown away and rebuilt, which is the normal way apps get updated here.</div>
   </li>
   <li>Start it:
     <span class="cmd">docker compose up -d
 docker ps</span>
-    <div class="see">You'll see: the image downloading the first time, then a line in <code>docker ps</code> showing <code>aiostreams</code> with a status of <code>Up</code>. The <code>-d</code> means detached, so it keeps running after you close the shell rather than dying with it.</div>
+    <div class="why"><b>What the two commands are:</b> <code>docker compose up</code> reads the recipe file in the folder you are standing in and makes reality match it, downloading anything missing and starting what is not running. <code>-d</code> is short for <b>detached</b>, meaning it hands your prompt back and lets the app keep running in the background instead of tying up your shell until you close it. <code>docker ps</code> lists what is currently running; <code>ps</code> is an old Unix name for <b>process status</b>, and you will meet it on its own in other contexts.</div>
+    <div class="see">You'll see: a few lines of the image downloading the first time, which can take a minute, then a line in <code>docker ps</code> showing <code>aiostreams</code> with a status beginning <code>Up</code>. If it is missing, <code>docker compose logs</code> prints what the app said as it tried to start, and a mistyped <code>.env</code> or a misaligned YAML line accounts for nearly all first attempts.</div>
   </li>
 </ol>
 
