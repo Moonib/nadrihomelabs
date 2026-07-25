@@ -1016,11 +1016,12 @@ docker ps</span>
 
 <h3>Step E, configure AIOStreams and get the one link out of it</h3>
 <ol class="steps">
-  <li>On any computer on your network, open <code>http://&lt;its-address&gt;:3000/stremio/configure</code>.
-    <div class="see">You'll see: AIOStreams' configuration page. Note the path, it is not the bare address; visiting the address alone does not land here.</div>
+  <li>On any computer on your network, open <code>http://&lt;its-address&gt;:3000/stremio/configure</code>, using the address <code>hostname -I</code> gave you.
+    <div class="why"><b>The part after the port is a <b>path</b>:</b> an address gets you to the machine and the port gets you to the right app on it, but many apps then keep different pages at different names underneath, written with slashes, exactly like folders. Visiting the bare address here lands somewhere unhelpful; the settings page lives at <code>/stremio/configure</code> and nowhere else. This is a normal thing for apps to do and you will meet it again.</div>
+    <div class="see">You'll see: AIOStreams' configuration page.</div>
   </li>
   <li>Find the <b>services</b> or <b>debrid</b> section, choose <b>TorBox</b>, and paste in the API token from Step B. Save.</li>
-  <li>Enable at least one <b>catalogue</b> source so there is something to search, and at least one <b>stream</b> source so there is something to play. The <b>TMDB</b> addon covers search and artwork; <b>Comet</b> is a sensible stream source to start with.
+  <li>Enable at least one <b>catalogue</b> source so there is something to search, and at least one <b>stream</b> source so there is something to play. Turn on <b>TMDB</b>, which is a large public film and television database, free to use, and it supplies the titles, posters, years and descriptions. Then turn on <b>Comet</b>, which goes looking for where a copy of a given title can actually be fetched from.
     <div class="why"><b>Why these are two separate jobs:</b> a catalogue source knows <i>that a film exists</i>, its title, year, poster and description. A stream source knows <i>where a copy of it can actually be fetched from</i>. AIOStreams needs both, and it is entirely possible to end up with a beautiful library full of titles that will not play because only the first was configured.</div>
   </li>
   <li>Save the configuration and copy the <b>manifest</b> link it gives you back. Paste it into your notes file.
@@ -1041,9 +1042,11 @@ docker ps</span>
 </ol>
 
 <h3>Step G, give Gelato its own library folders</h3>
-<p>From the Jellyfin container's shell, make two folders, kept well away from anything real you own:</p>
-<span class="cmd">mkdir -p /media/gelato/films
+<p>These folders go in the Jellyfin container, not the Docker one, so leave the Docker container with <code>exit</code> if you are still in it, and step into Jellyfin instead using its own ID from your notes:</p>
+<span class="cmd">pct enter 101
+mkdir -p /media/gelato/films
 mkdir -p /media/gelato/shows</span>
+<div class="why"><b>Where these actually end up:</b> <code>/media</code> inside this container is the doorway you opened in the storage section onto <code>/mnt/media</code> on the host, so these two folders are really being made on your big drive, just seen from the inside. That is what makes them survive the container being rebuilt, and it is worth pausing on, because the folder existing in two places at once with two different names is the whole idea of a bind mount rather than a quirk of this step.</div>
 <ol class="steps">
   <li>Point Gelato's configured base paths at those two folders, one for films and one for shows, and save.
     <div class="why"><b>You may hit this here:</b> if films and series share one folder, Gelato does not throw an error. It fills the library anyway and the result looks half right, with series appearing as single films, episodes missing, or artwork attached to the wrong thing. Because there is no error message to search for, this is the one worth getting right on the first pass rather than debugging afterwards.</div>
