@@ -1046,29 +1046,31 @@ docker ps</span>
     <div class="why"><b>What you just added:</b> a <b>plugin repository</b> is a catalogue address, not the plugin itself. Jellyfin ships knowing about one official catalogue; adding a second one just tells it about another shelf it is allowed to browse. Nothing is installed by this step.</div>
   </li>
   <li>Go to the <b>Catalogue</b> tab, find <b>Gelato</b> in the list, and install it. When Jellyfin asks you to restart, restart it.
+    <div class="safe"><b>One thing to avoid back in AIOStreams:</b> Gelato's authors specifically warn against the <b>Debridio</b> flavours of the TMDB addon, which appear alongside the plain one when you search. Use <b>The Movie Database</b>, the one whose id reads <code>tmdb-addon</code>, which is what Step E told you to pick.</div>
     <div class="see">You'll see: Gelato appear under <b>My Plugins</b> with a status of Active after the restart. If it never appears in the catalogue at all, the version check in Step A is the first thing to re-read.</div>
   </li>
-  <li>Open Gelato's settings from the plugin list, paste in the AIOStreams <b>manifest</b> link from Step E, and note the <b>base paths</b> it wants to write into. Save.</li>
+  <li>Open Gelato's settings from the plugin list. Paste the manifest link from Step E into <b>AIOStreams URL</b>. Leave every other setting alone for now, but read off the two paths it shows in <b>Movies Path</b> and <b>Series Path</b> and write both into your notes file exactly as they appear. Save.
+    <div class="why"><b>Why you copy them rather than choose them:</b> those two boxes already have sensible values filled in, and Gelato writes its placeholder files into whatever they say. The next step points Jellyfin at those same two paths, so the two halves have to agree exactly. Changing them is possible and unnecessary; copying them down is not.</div>
+    <div class="safe"><b>Keep films and series in separate paths.</b> They arrive that way by default, so this is only a warning against tidying them into one. If a single folder holds both, Gelato does not throw an error. It fills the library anyway and the result looks half right, with series appearing as single films, episodes missing, or artwork attached to the wrong thing. Because there is no error message to search for, this is worth getting right on the first pass rather than debugging afterwards.</div>
+  </li>
 </ol>
 
-<h3>Step G, give Gelato its own library folders</h3>
-<p>These folders go in the Jellyfin container, not the Docker one, so leave the Docker container with <code>exit</code> if you are still in it, and step into Jellyfin instead using its own ID from your notes:</p>
-<span class="cmd">pct enter 101
-mkdir -p /media/gelato/films
-mkdir -p /media/gelato/shows</span>
-<div class="why"><b>Where these actually end up:</b> <code>/media</code> inside this container is the doorway you opened in the storage section onto <code>/mnt/media</code> on the host, so these two folders are really being made on your big drive, just seen from the inside. That is what makes them survive the container being rebuilt, and it is worth pausing on, because the folder existing in two places at once with two different names is the whole idea of a bind mount rather than a quirk of this step.</div>
+<h3>Step G, give Gelato its libraries, then fill them</h3>
 <ol class="steps">
-  <li>Point Gelato's configured base paths at those two folders, one for films and one for shows, and save.
-    <div class="why"><b>You may hit this here:</b> if films and series share one folder, Gelato does not throw an error. It fills the library anyway and the result looks half right, with series appearing as single films, episodes missing, or artwork attached to the wrong thing. Because there is no error message to search for, this is the one worth getting right on the first pass rather than debugging afterwards.</div>
+  <li>In Jellyfin, go to <b>Dashboard</b>, then <b>Libraries</b>, then <b>Add Media Library</b>. Create one of type <b>Movies</b> pointed at the <b>Movies Path</b> from your notes, and a second of type <b>Shows</b> pointed at the <b>Series Path</b>.
+    <div class="why"><b>Why two libraries and not one:</b> Jellyfin treats a library's type as a promise about what is inside it, and it reads a film and an episode very differently. This is the same reason the paths are separate, enforced a second time at the Jellyfin end.</div>
   </li>
-  <li>In Jellyfin, go to <b>Dashboard</b>, then <b>Libraries</b>, then <b>Add Media Library</b>. Create one of type <b>Movies</b> pointed at <code>/media/gelato/films</code>, and a second of type <b>Shows</b> pointed at <code>/media/gelato/shows</code>.</li>
-  <li>On the <b>Shows</b> library only, scroll to <b>Metadata downloaders</b>, tick <b>Gelato missing season/episode fetcher</b>, and drag it to the <b>top</b> of that list.
-    <div class="why"><b>Why the order matters:</b> Jellyfin asks each downloader in turn and takes the first answer it gets. The normal downloaders only describe episodes that exist as real files on disk, and Gelato's library has none, so if one of them answers first your series will show as an empty shell. Gelato's fetcher has to be asked first for the seasons and episodes to appear at all.</div>
+  <li>On the <b>Shows</b> library only, scroll to <b>Metadata downloaders</b>, tick <b>Gelato missing season/episode fetcher</b>, and drag it to the <b>top</b> of that list. Save both libraries.
+    <div class="why"><b>Why the order matters:</b> Jellyfin asks each downloader in turn and takes the first answer it gets. The normal downloaders only describe episodes that exist as real files on disk, and this library has none, so if one of them answers first your series will show as an empty shell. Gelato's fetcher has to be asked first for the seasons and episodes to appear at all.</div>
   </li>
-  <li>Save both libraries and let the scan run.
-    <div class="see">You'll see: the two libraries filling with title cards over the next few minutes, while the disk barely moves. Each card is a stub file of a kilobyte or two, which is the whole point.</div>
+  <li>Go to <b>Dashboard</b>, then <b>Scheduled Tasks</b>, find Gelato's <b>catalog import</b> task, and run it.
+    <div class="why"><b>Nothing appears without this:</b> creating the libraries only tells Jellyfin where to look. This task is what actually goes and fetches the catalogue through AIOStreams and writes the placeholder files into those two paths. A scheduled task in Jellyfin is a job it runs on a timer, and every one of them can also be triggered by hand, which is what you are doing here.</div>
+    <div class="see">You'll see: the task running with a progress indicator, then the two libraries filling with title cards over the next few minutes, while the disk barely moves. Each card is a stub file of a kilobyte or two, which is the whole point.</div>
   </li>
 </ol>
+
+<div class="box safe"><span class="lbl">If you change your AIOStreams configuration later</span>
+Any time you go back to AIOStreams and alter which services or addons it uses, restart Jellyfin afterwards. Gelato reads that configuration when it starts and does not notice it changing underneath, so without a restart you get the old behaviour and no error explaining why. Worth remembering, because the symptom looks like your new addon simply not working.</div>
 
 <h3>Step H, test one play</h3>
 <ol class="steps">
