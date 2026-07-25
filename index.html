@@ -1063,7 +1063,16 @@ docker ps</span>
     <div class="safe"><b>One thing to avoid back in AIOStreams:</b> Gelato's authors specifically warn against the <b>Debridio</b> flavours of the TMDB addon, which appear alongside the plain one when you search. Use <b>The Movie Database</b>, the one whose id reads <code>tmdb-addon</code>, which is what Step E told you to pick.</div>
     <div class="see">You'll see: Gelato appear under <b>My Plugins</b> with a status of Active after the restart. If it never appears in the catalogue at all, the version check in Step A is the first thing to re-read.</div>
   </li>
-  <li>Open Gelato's settings. Once the plugin is installed it gets its own <b>Gelato</b> entry in the Dashboard sidebar, under the <b>Plugins</b> group, which is the quickest way in. Paste the manifest link from Step E into <b>AIOStreams URL</b>. Then change <b>Movies Path</b> and <b>Series Path</b>, which arrive pointing at <code>/tmp/gelato/...</code>, to these instead, and save:
+  <li>Before touching Gelato's settings, make the two folders it is going to write into. From the Proxmox host Shell, step into the Jellyfin container and create them, replacing <code>101</code> with your Jellyfin container's own id:
+    <span class="cmd">pct enter 101
+mkdir -p /media/gelato/movies /media/gelato/series
+chown -R jellyfin:jellyfin /media/gelato
+ls -la /media/gelato</span>
+    <div class="why"><b>Why you have to do this by hand:</b> Gelato writes files into these folders but it does not create them, and it does not complain if they are missing. It simply writes nothing. You would see an import task run happily to completion and an empty library afterwards, with no error anywhere to explain it. Making them first removes that whole class of confusion.</div>
+    <div class="why"><b>What <code>chown</code> is for:</b> every file on Linux belongs to a user, and a program can only write where its own user is allowed to. Jellyfin runs as a user called <code>jellyfin</code>, but you created these folders as <code>root</code>, so without this line they would belong to the wrong person. <code>chown</code> is change owner, and <code>-R</code> means apply it right through everything inside as well.</div>
+    <div class="see">You'll see: two empty folders named <code>movies</code> and <code>series</code>, both owned by <code>jellyfin</code>. Empty is correct at this stage. Nothing fills them until the import task runs later in Step G.</div>
+  </li>
+  <li>Now open Gelato's settings. Once the plugin is installed it gets its own <b>Gelato</b> entry in the Dashboard sidebar, under the <b>Plugins</b> group, which is the quickest way in. Paste the manifest link from Step E into <b>AIOStreams URL</b>. Then change <b>Movies Path</b> and <b>Series Path</b>, which arrive pointing at <code>/tmp/gelato/...</code>, to these instead, and save:
     <span class="cmd">/media/gelato/movies
 /media/gelato/series</span>
     <div class="undo"><b>Do not leave the defaults.</b> <code>/tmp</code> is Linux's scratch drawer, meant for things that only need to exist while the machine is running, and it is emptied on every reboot. Left as they are, your entire library disappears the next time that container restarts. <code>/media</code> is the doorway onto your big drive that you opened in the storage section, so the two paths above survive both reboots and the container being rebuilt.</div>
