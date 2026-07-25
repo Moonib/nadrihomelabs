@@ -129,6 +129,10 @@ ol.steps>li::before{content:counter(s);position:absolute;left:0;top:12px;width:3
   justify-content:center;font-weight:700;font-size:.95rem}
 .steps .why{color:var(--muted);font-size:.95rem;margin-top:5px} .steps .why b{color:var(--ink)}
 .see{color:var(--green);font-size:.93rem;margin-top:5px;font-weight:600}
+.steps .safe{color:var(--amber);font-size:.95rem;margin-top:5px} .steps .safe b{color:var(--amber)}
+.steps .undo{color:var(--red);font-size:.95rem;margin-top:7px;padding:8px 12px;
+  background:var(--red-soft);border-left:3px solid var(--red);border-radius:0 6px 6px 0}
+.steps .undo b{color:var(--red)}
 .recap{background:none;border:none;border-top:2px solid var(--rule-strong);
   border-radius:0;padding:12px 0 0;margin:30px 0 18px}
 .recap .lbl{font-weight:800;color:var(--ink);font-size:.755rem;text-transform:uppercase;letter-spacing:.075em}
@@ -912,25 +916,139 @@ This route <b>rents</b> rather than owns. The day the TorBox subscription lapses
 <div class="box why"><span class="lbl">Check this first: your Jellyfin version</span>
 Gelato needs <b>Jellyfin 10.11 or newer</b> to install at all. Before anything else, open Jellyfin, go to <b>Dashboard, then About</b>, and read the version number. If it is 10.11 or higher you are ready. If it is older, updating Jellyfin is the first job, and worth a snapshot of its container first out of the habit from the ops section. This one check decides everything downstream, so it comes before any account is created or any container is touched.</div>
 
-<h3>Docker is still how one of these pieces runs</h3>
-<div class="box learn"><span class="lbl">Understand this: two of the three pieces need nothing installed on your server</span>
-It is worth being clear about where each piece actually lives, because it is less work than the old stack, not more. <b>TorBox</b> is simply an account on someone else's servers, so there is nothing to install for it at all. <b>Gelato</b> installs inside Jellyfin itself, as a <b>plugin</b>, from Jellyfin's own Dashboard. The only piece that runs on your own machine is <b>AIOStreams</b>, and it runs as a <b>Docker</b> container. You already built a Docker container earlier in this build, so AIOStreams becomes one more small entry in a <code>docker-compose.yml</code> recipe file there, brought up with the same one command style you already know. Docker lets one lightweight Linux container run self contained app packages, called container images, each described in that single plain text recipe file, rather than each app needing its own full Proxmox container.</div>
+<h3>Where each piece actually lives</h3>
+<div class="box learn"><span class="lbl">Understand this: only one of the three runs on your server</span>
+It is worth being clear about where each piece sits, because it is less work than the old stack, not more. <b>TorBox</b> is simply an account on someone else's servers, so there is nothing to install for it at all. <b>Gelato</b> installs inside Jellyfin itself, as a <b>plugin</b>, from Jellyfin's own Dashboard, so it needs no container of its own either. The only piece that runs on your own machine is <b>AIOStreams</b>, and it runs as a <b>Docker</b> container. Docker is a second layer of containers that lives <i>inside</i> one of your Proxmox containers: rather than giving every small app its own full Proxmox container, you build one Linux container, install Docker in it, and then run app after app inside that as self contained packages called <b>container images</b>, each described in a single plain text recipe file. That means one Proxmox container built once, and every future app after this one is a few lines of text in the same file.</div>
 
-<h3>The build, in order</h3>
-<p>The exact commands, tokens and screens for each of these get filled into this section as we do them together, the same way every other part of this guide was written from the real steps rather than ahead of them. What follows is the shape of the build so the whole path is visible before the first click.</p>
+<h3>Step A, confirm your Jellyfin version</h3>
 <ol class="steps">
-  <li><b>Confirm Jellyfin is 10.11 or newer</b>, updating it first if not. This is the gate for everything else, so it is settled before anything is bought or built.</li>
-  <li><b>Create a TorBox account</b> and get its <b>API token</b>. This is the paid engine, and its token is the single credential the rest of the setup hands around.
-    <div class="why"><b>Treat this one as a secret, not as config:</b> the token is not a password you type at a login box, it is a key that grants full access to a paid account to whoever holds it. It goes into your notes file, and from there it is pasted directly into the one screen that needs it. Not into a chat window, not into a screenshot, not into a message to someone helping you. If it ever does leak, TorBox lets you regenerate it, which instantly invalidates the old one; that is the right move and it costs you nothing but re-pasting it.</div>
+  <li>Open Jellyfin in a browser, click the <b>gear icon</b> in the top right to reach the <b>Dashboard</b>, then choose <b>About</b> in the left menu. Read the version number at the top.
+    <div class="see">You'll see: a version like <code>10.11.x</code>. Anything 10.11 or higher is ready. If it is lower, Gelato will not appear as installable at all later, so update Jellyfin before going any further, and take a snapshot of its container first out of the habit from the ops section.</div>
   </li>
-  <li><b>Deploy AIOStreams</b> as a container in your existing Docker box, then open its configuration page and give it two things: your TorBox token, so it knows which engine to resolve streams through, and at least one search source so it has a catalogue to show. It hands back a single web address called a <b>manifest</b>, which is the one link Gelato needs.
-    <div class="why"><b>Where its own secrets live:</b> AIOStreams needs a couple of settings of its own, and this is where you meet the standard way software handles that. Rather than writing them into the <code>docker-compose.yml</code> recipe, they go in a separate plain text file called <code>.env</code> sitting beside it, holding one <code>NAME=value</code> per line. The recipe file describes how the app runs and is safe to share or publish; the <code>.env</code> file holds the parts that grant access and is never shared. This is the same config-versus-secrets split from the prep section, now enforced by two different files, and it is why almost every real project's ignore list starts with <code>.env</code>.</div>
+</ol>
+
+<h3>Step B, get your TorBox API token</h3>
+<ol class="steps">
+  <li>Create an account at <code>torbox.app</code> and pick a plan. This is the paid engine that makes playback instant, and it is the only thing in this section that costs money.</li>
+  <li>Once signed in, open <b>Settings</b>, find the <b>API</b> section, and copy the <b>API token</b>. Paste it straight into your notes file.
+    <div class="why"><b>Treat this one as a secret, not as config:</b> the token is not a password you type at a login box, it is a key that grants full access to a paid account to whoever holds it. It goes into your notes file, and from there it is pasted directly into the one screen that needs it. Not into a chat window, not into a screenshot, not into a message to someone helping you. If it ever does leak, TorBox lets you regenerate it on that same page, which instantly invalidates the old one; that is the right move and it costs you nothing but re-pasting it.</div>
   </li>
-  <li><b>Install the Gelato plugin in Jellyfin</b>, by adding its plugin repository under <b>Dashboard, Plugins, Repositories</b>, installing Gelato from the catalogue, and restarting Jellyfin when it asks. Then paste the AIOStreams manifest into Gelato's settings so the plugin knows where to get its catalogue and streams.</li>
-  <li><b>Give Gelato its own library folders</b>, one for films and a separate one for shows, kept apart from any real media, since a single folder shared between the two is the most common thing that trips Gelato up. Point a new Jellyfin <b>Movies</b> library and a new <b>Shows</b> library at those folders so the stub cards appear in their own clean rows.
-    <div class="why"><b>You may hit this here:</b> if films and series share one folder, Gelato does not throw an error. It fills the library anyway and the result looks half right, with series appearing as single films, episodes missing, or artwork attached to the wrong thing. Because there is no error message to search for, this is the one worth getting right on the first pass rather than debugging afterwards. Two folders, two libraries, kept away from the folder holding any real media you own.</div>
+</ol>
+
+<h3>Step C, build the container that Docker runs in</h3>
+<p>From the Proxmox host Shell, the same place every other container was created:</p>
+<span class="cmd">bash -c "$(curl -fsSL https://raw.githubusercontent.com/community-scripts/ProxmoxVE/main/ct/docker.sh)"</span>
+<ol class="steps">
+  <li>Choose <b>Advanced</b> settings when it asks, and give it <b>2 cores, 2GB memory and 8GB disk</b>. When it offers to install Portainer or Docker Compose extras, accept <b>Docker Compose</b>; it is the recipe-file tool this section relies on.</li>
+  <li>When the script finishes it prints the new container's ID and address. Write both into your notes file.
+    <div class="why"><b>Why the address matters more here than usual:</b> AIOStreams writes its own address into every link it hands out, including the one link Gelato needs. If you do not know the address before you configure it, you will configure it wrong and have to redo it.</div>
   </li>
-  <li><b>Test one play</b>, end to end: open Jellyfin, pick a title Gelato has filled in, and press play. A working setup starts the stream within a few seconds, served through your debrid engine, with nothing downloaded to disk. That first successful play is the proof the whole chain is wired correctly.</li>
+  <li>Set a <b>DHCP reservation</b> for it in your router, same habit as every other container, so the address it just told you never changes underneath it.</li>
+  <li>Enter the container from the host and confirm Docker is actually running:
+    <span class="cmd">pct enter &lt;its-id&gt;
+docker --version
+docker compose version</span>
+    <div class="see">You'll see: two version lines, one for Docker and one for Compose. If either says "command not found", the script did not finish; re-run it rather than trying to patch it by hand.</div>
+  </li>
+</ol>
+
+<h3>Step D, deploy AIOStreams</h3>
+<p>Everything in this step is typed inside the Docker container, not on the Proxmox host. Make a home for it first:</p>
+<span class="cmd">mkdir -p /opt/aiostreams
+cd /opt/aiostreams</span>
+<ol class="steps">
+  <li>Confirm the container's own address, because you are about to write it into a file:
+    <span class="cmd">hostname -I</span>
+    <div class="see">You'll see: one address, for example <code>192.168.1.120</code>. That is the address the rest of this step uses.</div>
+  </li>
+  <li>Generate the key AIOStreams uses to encrypt its saved configurations:
+    <span class="cmd">openssl rand -hex 32</span>
+    <div class="undo"><b>Copy this into your notes now, and never change it afterwards.</b> AIOStreams encrypts every saved configuration with this key. Changing it later does not reset anything, it makes every existing configuration permanently unreadable, including the link Gelato is using. There is no recovery from that beyond setting the whole thing up again from scratch.</div>
+  </li>
+  <li>Create the settings file that holds those values:
+    <span class="cmd">nano .env</span>
+    <p>Type in these three lines, swapping in your own address and the key you just generated:</p>
+    <span class="cmd">BASE_URL=http://192.168.1.120:3000
+SECRET_KEY=&lt;the 64 characters openssl printed&gt;
+DATABASE_URI=sqlite://./data/db.sqlite</span>
+    <p>Save with <b>Ctrl+O</b>, Enter, then exit with <b>Ctrl+X</b>.</p>
+    <div class="why"><b>What each line does:</b> <code>BASE_URL</code> is the full address AIOStreams stamps into every link it produces, which is why it needs the protocol, the address and the port all three. <code>SECRET_KEY</code> is the encryption key from the previous step. <code>DATABASE_URI</code> tells it where to keep its own small database; <b>SQLite</b> is a database that is just a single file on disk rather than a service you run separately, which is exactly right for one instance serving one household.</div>
+    <div class="why"><b>Why a separate file at all:</b> these could technically be written into the recipe file below, but they are not, and this is the standard way software handles the split. The recipe file describes <i>how the app runs</i> and is safe to share or publish; the <code>.env</code> file holds the parts that <i>grant access</i> and is never shared. Same config-versus-secrets split from the prep section, now enforced by two different files, and it is why almost every real project's ignore list starts with <code>.env</code>.</div>
+  </li>
+  <li>Create the recipe file beside it:
+    <span class="cmd">nano compose.yaml</span>
+    <p>Type in exactly this, minding the indentation, since this file format cares about it:</p>
+    <span class="cmd">services:
+  aiostreams:
+    image: ghcr.io/viren070/aiostreams:latest
+    container_name: aiostreams
+    restart: unless-stopped
+    ports:
+      - 3000:3000
+    env_file:
+      - .env
+    volumes:
+      - ./data:/app/data</span>
+    <p>Save and exit the same way.</p>
+    <div class="why"><b>Reading it line by line:</b> <code>image</code> is which prebuilt app package to fetch and from where. <code>restart: unless-stopped</code> means it comes back on its own after a reboot or a crash, unless you deliberately stopped it. <code>ports</code> maps port 3000 inside the app out to port 3000 on the container, which is how anything else on your network can reach it. <code>env_file</code> pulls in the <code>.env</code> you just wrote. <code>volumes</code> keeps the app's data in a real folder on disk (<code>./data</code>) rather than inside the disposable app package, so tearing the app down and rebuilding it does not lose your configuration.</div>
+  </li>
+  <li>Start it:
+    <span class="cmd">docker compose up -d
+docker ps</span>
+    <div class="see">You'll see: the image downloading the first time, then a line in <code>docker ps</code> showing <code>aiostreams</code> with a status of <code>Up</code>. The <code>-d</code> means detached, so it keeps running after you close the shell rather than dying with it.</div>
+  </li>
+</ol>
+
+<h3>Step E, configure AIOStreams and get the one link out of it</h3>
+<ol class="steps">
+  <li>On any computer on your network, open <code>http://&lt;its-address&gt;:3000/stremio/configure</code>.
+    <div class="see">You'll see: AIOStreams' configuration page. Note the path, it is not the bare address; visiting the address alone does not land here.</div>
+  </li>
+  <li>Find the <b>services</b> or <b>debrid</b> section, choose <b>TorBox</b>, and paste in the API token from Step B. Save.</li>
+  <li>Enable at least one <b>catalogue</b> source so there is something to search, and at least one <b>stream</b> source so there is something to play. The <b>TMDB</b> addon covers search and artwork; <b>Comet</b> is a sensible stream source to start with.
+    <div class="why"><b>Why these are two separate jobs:</b> a catalogue source knows <i>that a film exists</i>, its title, year, poster and description. A stream source knows <i>where a copy of it can actually be fetched from</i>. AIOStreams needs both, and it is entirely possible to end up with a beautiful library full of titles that will not play because only the first was configured.</div>
+  </li>
+  <li>Save the configuration and copy the <b>manifest</b> link it gives you back. Paste it into your notes file.
+    <div class="why"><b>What a manifest is:</b> one web address that describes everything this addon can do and where to ask for it, the addon's own contents page. It is the single thing Gelato needs; every other setting you just made travels inside it.</div>
+  </li>
+</ol>
+
+<h3>Step F, install Gelato inside Jellyfin</h3>
+<ol class="steps">
+  <li>In Jellyfin, go to <b>Dashboard</b>, then <b>Plugins</b>, then the <b>Repositories</b> tab, and click the <b>+</b> to add one. Give it any name you like, and for the URL enter exactly:
+    <span class="cmd">https://raw.githubusercontent.com/lostb1t/Gelato/refs/heads/gh-pages/repository.json</span>
+    <div class="why"><b>What you just added:</b> a <b>plugin repository</b> is a catalogue address, not the plugin itself. Jellyfin ships knowing about one official catalogue; adding a second one just tells it about another shelf it is allowed to browse. Nothing is installed by this step.</div>
+  </li>
+  <li>Go to the <b>Catalogue</b> tab, find <b>Gelato</b> in the list, and install it. When Jellyfin asks you to restart, restart it.
+    <div class="see">You'll see: Gelato appear under <b>My Plugins</b> with a status of Active after the restart. If it never appears in the catalogue at all, the version check in Step A is the first thing to re-read.</div>
+  </li>
+  <li>Open Gelato's settings from the plugin list, paste in the AIOStreams <b>manifest</b> link from Step E, and note the <b>base paths</b> it wants to write into. Save.</li>
+</ol>
+
+<h3>Step G, give Gelato its own library folders</h3>
+<p>From the Jellyfin container's shell, make two folders, kept well away from anything real you own:</p>
+<span class="cmd">mkdir -p /media/gelato/films
+mkdir -p /media/gelato/shows</span>
+<ol class="steps">
+  <li>Point Gelato's configured base paths at those two folders, one for films and one for shows, and save.
+    <div class="why"><b>You may hit this here:</b> if films and series share one folder, Gelato does not throw an error. It fills the library anyway and the result looks half right, with series appearing as single films, episodes missing, or artwork attached to the wrong thing. Because there is no error message to search for, this is the one worth getting right on the first pass rather than debugging afterwards.</div>
+  </li>
+  <li>In Jellyfin, go to <b>Dashboard</b>, then <b>Libraries</b>, then <b>Add Media Library</b>. Create one of type <b>Movies</b> pointed at <code>/media/gelato/films</code>, and a second of type <b>Shows</b> pointed at <code>/media/gelato/shows</code>.</li>
+  <li>On the <b>Shows</b> library only, scroll to <b>Metadata downloaders</b>, tick <b>Gelato missing season/episode fetcher</b>, and drag it to the <b>top</b> of that list.
+    <div class="why"><b>Why the order matters:</b> Jellyfin asks each downloader in turn and takes the first answer it gets. The normal downloaders only describe episodes that exist as real files on disk, and Gelato's library has none, so if one of them answers first your series will show as an empty shell. Gelato's fetcher has to be asked first for the seasons and episodes to appear at all.</div>
+  </li>
+  <li>Save both libraries and let the scan run.
+    <div class="see">You'll see: the two libraries filling with title cards over the next few minutes, while the disk barely moves. Each card is a stub file of a kilobyte or two, which is the whole point.</div>
+  </li>
+</ol>
+
+<h3>Step H, test one play</h3>
+<ol class="steps">
+  <li>Open Jellyfin in a browser on your computer rather than on a TV app, pick a film Gelato has filled in, and press play.
+    <div class="see">You'll see: a few seconds of nothing while Gelato asks AIOStreams for a stream and AIOStreams resolves it through TorBox, then the film starts. Nothing is written to disk.</div>
+    <div class="why"><b>Why a browser first:</b> if something is wrong, a browser tells you plainly and lets you check Jellyfin's Dashboard logs in the next tab. A TV app tends to fail with a single unhelpful message, which turns a two minute fix into an evening.</div>
+  </li>
+  <li>Play one episode of a series too, since the series path uses the metadata fetcher from Step G and can fail independently of films.</li>
 </ol>
 
 <div class="box safe"><span class="lbl">Only tear the old stack down once this one plays</span>
