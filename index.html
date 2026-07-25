@@ -75,7 +75,7 @@ body{margin:0;background:var(--bg);color:var(--ink);
 h1{font-size:2.05rem;line-height:1.16;margin:0 0 6px;color:var(--head)}
 .sub{color:var(--muted);font-size:1.06rem;margin:0 0 10px}
 h2{font-size:1.5rem;margin:52px 0 4px;padding-top:26px;border-top:2px solid var(--line);color:var(--head);
-  scroll-margin-top:64px;position:relative}
+  scroll-margin-top:8px;position:relative}
 h2 .n{color:var(--green);font-weight:800;margin-right:6px}
 h3{font-size:1.13rem;margin:26px 0 6px;scroll-margin-top:64px}
 h4{font-size:1rem;margin:22px 0 4px;color:var(--head)}
@@ -1371,8 +1371,10 @@ $$('.gterm').forEach(function(g){g.addEventListener('click',function(){pop.style
 /* ---------- scrollspy + crumb + read bar ---------- */
 var crumb=$('#crumb'),bar=$('#readbar');
 function onScroll(){
-  var y=window.scrollY+90,cur=secs[0];
-  for(var i=0;i<secs.length;i++){ if(secs[i].el.offsetTop<=y) cur=secs[i]; }
+  /* A heading counts as current once its top passes below the bar plus a little slack,
+     so clicking a nav link highlights that section straight away rather than a scroll later. */
+  var y=window.scrollY+150,cur=secs[0];
+  for(var i=0;i<secs.length;i++){ if(secs[i].el.getBoundingClientRect().top+window.scrollY<=y) cur=secs[i]; }
   secs.forEach(function(s){s.nav.classList.toggle('active',s===cur)});
   if(cur){
     var p='';parts.forEach(function(pp){if(pp.secs.indexOf(cur)>-1)p=pp.title.split('·')[0].trim()});
