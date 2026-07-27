@@ -1264,9 +1264,92 @@ This is a small taste of what <b>internal DNS</b> and <b>service discovery</b> d
 <p class="q">Q3. Why does Pi-hole need an extra rule in the proxy that Homepage and Jellyfin don't?</p>
 <p class="a">Pi-hole's real dashboard lives one level in, at /admin, rather than at its own root address. Without a redirect rule, visiting the bare address lands on its mostly blank holding page instead of the login screen.</p></div>
 
+<!-- ===================== SAMBA ===================== -->
+<h2 id="samba"><span class="n">12.</span>Samba: your files, showing up like a plugged-in drive</h2>
+<p>Everything so far has needed a specific app to reach it, Jellyfin for watching, Pi-hole's own page for DNS settings. This section gives you a far more general kind of access instead: a network folder that shows up in your own computer's file browser exactly like a USB drive plugged into the machine in front of you, except everything inside it actually lives on your server.</p>
+
+<div class="box learn"><span class="lbl">Understand this: the same conversation your computer already knows how to have</span>
+Windows has spoken a file-sharing language called <b>SMB</b> natively for decades, it's the same thing that lets one Windows PC see another's shared folder on an office network. <b>Samba</b> is the piece of software that lets a Linux machine, your server, join that same conversation and offer its own folders exactly the same way. Because SMB isn't a trick to reproduce, Windows, Mac and even most phones already understand it, nothing new needs installing on any of your family's own devices.</div>
+
+<h3>Step A, build a plain container for it</h3>
+<p>Samba has no ready-made helper script the way Pi-hole or Jellyfin did, so this one starts from a bare container instead, the same way you'd start any Linux box before choosing what to run on it. From the Proxmox host Shell:</p>
+<span class="cmd">bash -c "$(curl -fsSL https://raw.githubusercontent.com/community-scripts/ProxmoxVE/main/ct/debian.sh)"</span>
+<ol class="steps">
+  <li>Choose <b>Advanced</b> settings when it asks, and give it <b>1 core, 1GB memory and 4GB disk</b>. Samba itself is light, it's only handing files back and forth, not storing or converting anything itself.</li>
+  <li>When it finishes, write down the container's ID and address, and set a DHCP reservation for it in your router, same habit as every other container.</li>
+</ol>
+
+<h3>Step B, install Samba</h3>
+<ol class="steps">
+  <li>Enter the new container and install it:
+    <span class="cmd">pct enter &lt;its-id&gt;
+apt update &amp;&amp; apt install -y samba</span>
+    <div class="why"><b>Nothing unfamiliar here:</b> the same <code>apt</code> you met back in the first Linux section, asking the package manager for one more piece of software, this time the Samba server itself rather than a whole app.</div>
+  </li>
+</ol>
+
+<h3>Step C, open the same doorway you already know</h3>
+<ol class="steps">
+  <li>From the Proxmox host Shell, bind your big drive into this container exactly the way you did for Jellyfin in the storage section:
+    <span class="cmd">pct set &lt;its-id&gt; -mp0 /mnt/media,mp=/media
+pct reboot &lt;its-id&gt;</span>
+    <div class="why"><b>The same trick, a second time:</b> this is the identical bind mount from the storage section, just aimed at a new container. The host's <code>/mnt/media</code> now appears inside this container too, at <code>/media</code>, alongside Jellyfin, which sees the very same files through its own separate doorway.</div>
+    <div class="safe"><b>Watch for the same permission snag from the storage section.</b> If the folder appears empty or refuses access once you get to testing a share below, it's the identical unprivileged-container ownership mismatch you already read about there, not a new problem.</div>
+  </li>
+</ol>
+
+<h3>Step D, define the share</h3>
+<ol class="steps">
+  <li>Open Samba's own settings file:
+    <span class="cmd">nano /etc/samba/smb.conf</span>
+    <p>Scroll to the very bottom and add this:</p>
+    <span class="cmd">[media]
+   path = /media
+   browsable = yes
+   read only = no
+   guest ok = no
+   valid users = nadri</span>
+    <p>Save with <b>Ctrl+O</b>, Enter, then exit with <b>Ctrl+X</b>.</p>
+    <div class="why"><b>Reading it:</b> <code>[media]</code> is the name that shows up on your family's computers, call it whatever you like. <code>path</code> is which real folder it hands out. <code>browsable</code> means it appears when someone looks at what your server offers, rather than only working if typed exactly. <code>read only = no</code> allows dropping files in as well as taking them out. <code>guest ok = no</code> means a password is required, and <code>valid users</code> names exactly who that can be, swap <code>nadri</code> for whatever name you want your Samba account to be.</div>
+    <div class="safe"><b>Why not <code>guest ok = yes</code>:</b> that setting lets anyone on your network in with no password at all. Fine for a public library terminal, not for a folder that will hold family photos and documents. A password costs one extra step at setup and buys real protection for something worth protecting.</div>
+  </li>
+  <li>Create the actual account Samba checks that password against:
+    <span class="cmd">adduser --no-create-home --disabled-password nadri
+smbpasswd -a nadri</span>
+    <p>It asks for a password twice. This is the one your family types when connecting, so pick something you're happy sharing with them, and write it in your notes.</p>
+    <div class="why"><b>Two separate accounts doing two separate jobs:</b> <code>adduser</code> makes an ordinary Linux user, which Samba requires as a base to attach to, even though nobody is ever going to log into this container as that user directly, which is why <code>--no-create-home</code> and <code>--disabled-password</code> switch off the parts of a normal account you don't need. <code>smbpasswd</code> then gives that same name a second, separate password, the one Samba actually checks, kept in its own store rather than reusing Linux's own login system.</div>
+  </li>
+  <li>Restart Samba so it reads the new file:
+    <span class="cmd">systemctl restart smbd</span>
+  </li>
+</ol>
+
+<h3>Step E, connect from an actual computer</h3>
+<ol class="steps">
+  <li>On Windows, open File Explorer, and in the address bar type <code>\\&lt;its-ip&gt;\media</code>. On a Mac, open Finder, choose <b>Go, Connect to Server</b>, and type <code>smb://&lt;its-ip&gt;/media</code>. Sign in with the username and password from the step above.
+    <div class="see">You'll see: the folder opens exactly like a local drive. Drag a file in from your desktop, and it appears back on the server's <code>/mnt/media</code> immediately, no upload page, no app.</div>
+  </li>
+</ol>
+
+<div class="box map"><span class="lbl">You'll meet this again</span>
+<b>SMB/Samba</b> file shares are still exactly how most offices hand out shared drives today, and the split you just built by hand, a Linux <b>service account</b> holding its own separate credential rather than a person's own login, is the same pattern behind every <b>service principal</b> and <b>service account</b> you'll meet running real infrastructure.</div>
+
+<div class="recap"><span class="lbl">Recap</span>
+<ul><li><b>Samba</b> lets a Linux server speak the same file-sharing language, <b>SMB</b>, that Windows, Mac and most phones already understand natively, so no new software is needed on any device to use it.</li>
+<li>The same <b>bind mount</b> from the storage section can be reused to give a second container, this one, its own doorway onto the same big drive Jellyfin already uses.</li>
+<li>Samba checks its own separate password store, layered on top of an ordinary Linux user created just to anchor it, rather than reusing Linux's own login.</li></ul></div>
+
+<div class="quiz"><span class="lbl">Check yourself</span>
+<p class="q">Q1. Why does connecting to this share need no extra app on a Windows or Mac computer?</p>
+<p class="a">Both already speak SMB, the same file-sharing protocol Samba uses, natively, since it's the same language Windows PCs have long used to share folders with each other. Samba just lets a Linux machine join that same conversation.</p>
+<p class="q">Q2. Why create a Linux user at all if nobody is meant to log into the container as them?</p>
+<p class="a">Samba needs an existing Linux account to attach its own separate password to, even though the account itself is never used for an actual login, which is why the home directory and normal login are switched off when it's created.</p>
+<p class="q">Q3. What would <code>guest ok = yes</code> actually do, and why is it avoided here?</p>
+<p class="a">It would let anyone on the network open the share with no password at all. Fine for something genuinely public, but not appropriate for a share that will hold family files.</p></div>
+
 <!-- ===================== OPS ===================== -->
 <div class="partbar">Part 4 · Keep it running, and where to take it next</div>
-<h2 id="ops"><span class="n">12.</span>Ops discipline: the habits that separate hobbyists from pros</h2>
+<h2 id="ops"><span class="n">13.</span>Ops discipline: the habits that separate hobbyists from pros</h2>
 <p>You now have a real, working system that the household relies on. These are the habits that keep it healthy, and they're the same disciplines that separate a hobbyist from someone doing this professionally. Build them in now, before you go adding more.</p>
 <div class="box learn"><span class="lbl">Understand this: a snapshot is not a backup</span>
 A <b>snapshot</b> saves a container's state <em>on the same disk</em>: brilliant for "undo my change", useless if the disk itself dies. A <b>backup</b> is a separate copy kept elsewhere. Pros follow the <b>3-2-1 rule</b>: 3 copies of important data, on 2 different media, with 1 kept off-site. Even a mirror of two drives isn't a backup, because deleting a file deletes it on both. This distinction is a genuine exam and interview topic.</div>
@@ -1282,7 +1365,7 @@ A <b>snapshot</b> saves a container's state <em>on the same disk</em>: brilliant
 <li>Documentation, regular patching, and least privilege are the everyday disciplines of real operations and security work.</li></ul></div>
 
 <!-- ===================== ROADMAP ===================== -->
-<h2 id="roadmap"><span class="n">13.</span>The roadmap: the other apps worth adding</h2>
+<h2 id="roadmap"><span class="n">14.</span>The roadmap: the other apps worth adding</h2>
 <p>The rest of what was floated early on, each its own separate container, none set up yet. Every one of these follows the exact pattern you already know by heart: run the install command from the Proxmox host, accept the defaults, open the address it gives you, set a reserved address in your router once it's working. What's below is enough to actually start each one, not just a name and a sentence.</p>
 
 <h4>Immich, family photo backup</h4>
@@ -1323,7 +1406,7 @@ A <b>snapshot</b> saves a container's state <em>on the same disk</em>: brilliant
 <li>Proxmox Backup Server only becomes a true off-site backup once it lives on a second, separate machine.</li></ul></div>
 
 <!-- ===================== NEXT ===================== -->
-<h2 id="next"><span class="n">14.</span>Where this points your career (and beyond AZ-900)</h2>
+<h2 id="next"><span class="n">15.</span>Where this points your career (and beyond AZ-900)</h2>
 <p>A build like this is also a way to find out what you enjoy. Here's an honest map of where each thing you touched can lead, so you can follow the bits that light you up.</p>
 <div class="box map"><span class="lbl">What you've actually sampled</span>
 <b>Enjoyed the hypervisor and building containers?</b> That's <b>systems administration / virtualization / cloud infrastructure</b> → after AZ-900, look at <b>AZ-104 (Azure Administrator)</b>.<br>
@@ -1334,10 +1417,11 @@ A <b>snapshot</b> saves a container's state <em>on the same disk</em>: brilliant
 <p>A broad, beginner-friendly cert like AZ-900 is a smart first move: it gives you the shared vocabulary and a map of the territory. A home lab like this is the perfect companion, because you keep going "oh, I did that." Do a cert for the words; keep tinkering here for the hands. Having both is exactly the combination that gets you noticed for the next role.</p>
 
 <!-- ===================== GLOSSARY ===================== -->
-<h2 id="glossary"><span class="n">15.</span>Glossary of every term you'll meet</h2>
+<h2 id="glossary"><span class="n">16.</span>Glossary of every term you'll meet</h2>
 <dl class="gloss">
   <dt>Fladder</dt><dd>An alternative app for watching your Jellyfin library, built by a different team. Talks to the same server, no changes needed on Jellyfin's side.</dd>
   <dt>Homepage</dt><dd>A dashboard container that shows every one of your services as a clickable tile, so nobody needs to know an IP address or port to reach anything. Configured entirely through plain text files like <code>services.yaml</code> rather than clicked together in a web page.</dd>
+  <dt>Samba / SMB</dt><dd>SMB is the file-sharing language Windows, Mac and most phones already speak natively. Samba is the software that lets a Linux server join that same conversation, so a folder on it shows up on other devices exactly like a plugged-in drive, no extra app needed.</dd>
   <dt>Local DNS record</dt><dd>A name-to-address entry you add to Pi-hole yourself, only known inside your own house, letting a memorable name like nadrihome.com replace an IP address. Ending it in a real TLD like .com keeps browsers from treating it as a search. Can only ever hold a bare address, never a port or protocol.</dd>
   <dt>Reverse proxy</dt><dd>A container (here, Nginx Proxy Manager) that sits on the normal web port and forwards each incoming name on to the right internal container and port, which is what lets a name work with no port typed after it.</dd>
   <dt>HTTP status code / 301 redirect</dt><dd>A three-digit number every web response carries, telling the browser what happened. 301 means "moved permanently", telling the browser to automatically continue on to a new address, used here to send a bare address on to a service's real path like /admin.</dd>
@@ -1419,7 +1503,7 @@ var META={
  pihole:['build','40 min','reversible'],storage:['build','40 min','warn:formats the drive'],
  jellyfin:['build','30 min','reversible'],remote:['build','50 min','reversible'],
  automate:['build','45 min','needs Jellyfin 10.11+'],dashboard:['build','45 min','reversible'],
- ops:['read','10 min read'],roadmap:['ref','reference'],next:['read','5 min read'],glossary:['ref','reference']
+ samba:['build','30 min','reversible'],ops:['read','10 min read'],roadmap:['ref','reference'],next:['read','5 min read'],glossary:['ref','reference']
 };
 
 /* ---------- build sidebar + meta + anchors ---------- */
