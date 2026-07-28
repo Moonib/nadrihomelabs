@@ -1118,7 +1118,16 @@ docker ps</span>
     <div class="see">You'll see: the task running with a progress indicator, then the two libraries filling with title cards over the next few minutes, while the disk barely moves.</div>
     <div class="why"><b>Look in those folders and they will still be almost empty.</b> Each holds a single small file called <code>stub.txt</code>, and that is correct. Gelato does not write a file per title. It puts each title straight into Jellyfin's catalogue as a database entry, and the one <code>stub.txt</code> exists only to give Jellyfin something real to find so it agrees to scan the folder at all. Leave that file alone. An almost empty folder next to a full library is the setup working exactly as intended.</div>
   </li>
+  <li>Stay on that page and look at the rest of the <b>Gelato</b> group. Alongside the import sit <b>Sync series trees</b> and <b>Sync release dates</b>. Both already run by themselves, at startup and once a day, so there is nothing to schedule. Run <b>Sync series trees</b> once by hand now, so you have seen it work and know where it lives.
+    <div class="why"><b>Why a programme that is still being made needs a job of its own:</b> the import wrote down the programmes as they were on the day it ran. A finished series never changes again, but one that is still airing grows underneath you: a new season arrives at the source weeks later, and nothing goes back to look for it unless something is told to. That is this task's entire purpose. It is also why a show can sit in your library quite happily for months and then show a new season with a red <b>Missing</b> label against every episode. <b>Missing</b> is Jellyfin saying it knows the episode exists but has nothing attached to it, which is the state every episode is in until this task has been round and filled it in.</div>
+    <div class="why"><b>What the release dates one is for:</b> it stamps each title with the date it actually became available, which is what Gelato uses if you ever switch on its filter for unreleased items. Harmless to run, and worth running now so the dates are already there if you turn that filter on later.</div>
+    <div class="safe"><b>Two entries in that group are destructive and one of them is called purge.</b> They delete Gelato's items or its cached streams and exist for starting over from nothing. Neither has any part in setting this up. Read the name before clicking anything in this group.</div>
+  </li>
 </ol>
+
+<div class="box safe"><span class="lbl">If one show refuses to fill in while everything else works</span>
+Run <b>Sync series trees</b> first, since a whole season showing as <b>Missing</b> is almost always just that task not having run since the season appeared. If a single programme is still stubborn afterwards, open it, use the three dots, choose <b>Refresh metadata</b> with <b>Replace all metadata</b>, and let it rebuild that one show rather than the whole library.
+<br><br>If it still will not fill in, check that the programme has an <b>IMDb id</b> against it, which you can see under <b>Edit metadata</b>. Gelato asks for episodes using the programme's IMDb id together with a season and an episode number, and if any of those three is blank it has nothing to ask with and returns nothing at all. This is worth knowing because it is where anime tends to come unstuck: long-running anime is often split into separately listed entries rather than numbered seasons, so the numbers Jellyfin holds and the numbers the sources use do not always line up.</div>
 
 <div class="box safe"><span class="lbl">If you change your AIOStreams configuration later</span>
 Any time you go back to AIOStreams and alter which services or addons it uses, restart Jellyfin afterwards. Gelato reads that configuration when it starts and does not notice it changing underneath, so without a restart you get the old behaviour and no error explaining why. Worth remembering, because the symptom looks like your new addon simply not working.</div>
@@ -1594,6 +1603,46 @@ done</span>
 
 <div class="box safe"><span class="lbl">What this doesn't cover</span>
 This patches the operating system underneath each app, not the app itself. Jellyfin, Pi-hole and everything else still only move to a new version when you deliberately re-run that container's own install script, exactly as this guide already has you doing elsewhere. That's the deliberate half of the split above, left in your hands on purpose rather than automated away.</div>
+
+<h3>When a container quietly fills its own disk</h3>
+<div class="box learn"><span class="lbl">Understand this: the container is up, the app is dead, and that is one fault not two</span>
+This is the single most common way a home server breaks, and the reason it catches people out is that the machine keeps insisting everything is fine. Each container was given its own small disk when it was created, often eight gigabytes, and that disk holds the operating system, the app, and everything the app writes as it runs. The container itself needs almost nothing to stay running. The app inside it needs to write constantly.
+<br><br>So when that disk fills, the container carries on reporting itself as running while the app inside dies within a second of starting, because the first thing it tries to do is open its database and it cannot. It gets restarted, dies again, and after a handful of attempts the system decides the service is flapping and stops trying, at which point everything goes quiet and you get no further clues at all.
+<br><br>The reason it usually happens after a reboot rather than during normal use is simply that a reboot is the next time anything tries to start from scratch. The disk had been filling for weeks; the reboot is when you find out.</div>
+<ol class="steps">
+  <li>Get inside the container and look at the disk before touching anything.
+    <span class="cmd">pct enter &lt;its-id&gt;
+df -h /</span>
+    <div class="see">You'll see: a percentage. Anything from about 95% upwards is your answer and you can stop looking for other causes.</div>
+  </li>
+  <li>Ask the service what happened, in its own words.
+    <span class="cmd">systemctl status &lt;app-name&gt; --no-pager -l</span>
+    <div class="why"><b>What you're reading for:</b> a line saying <b>failed</b>, a <b>Duration</b> measured in milliseconds, and a mention of the start request being repeated too quickly. Together those three say the app is not crashing part way through its work, it is dying immediately on startup, which points at something it needs before it can do anything rather than at anything it was asked to do.</div>
+  </li>
+  <li>Find where the space actually went, so you delete the right thing rather than the first thing.
+    <span class="cmd">du -xh --max-depth=1 / 2>/dev/null | sort -h | tail -15</span>
+    <div class="why"><b>Why the <code>-x</code> matters:</b> it tells the count to stop at the edge of this disk. Without it, any big drive you have mounted inside the container gets included, the totals come back in terabytes, and the actual culprit is buried. Add another <code>--max-depth</code> run on whichever folder came out largest to walk further in.</div>
+  </li>
+  <li>Reclaim the safe things. None of these touch anything the app owns.
+    <span class="cmd">apt clean
+journalctl --vacuum-size=50M</span>
+    <div class="why"><b>Why the package cache is nearly always the answer:</b> every package you have ever installed or upgraded leaves its downloaded installer sitting in a cache folder, and nothing ever clears it. On a machine with a large disk you would never notice. On an eight gigabyte container it is fatal, and the automatic security patching set up earlier in this section quietly makes it worse, because it downloads installers on your behalf for years without ever being asked to tidy up. <code>apt clean</code> deletes those installers only. Nothing that is installed is affected, because the installer and the installed thing are two separate things.</div>
+    <div class="see">You'll see: <code>df -h /</code> reporting gigabytes free where it reported megabytes before.</div>
+  </li>
+  <li>Clear the flapping mark, then start the app.
+    <span class="cmd">systemctl reset-failed &lt;app-name&gt;
+systemctl start &lt;app-name&gt;
+systemctl status &lt;app-name&gt; --no-pager</span>
+    <div class="undo"><b>The first of those three lines is not optional.</b> Having given up earlier, the system is refusing to accept start requests for that service at all. Without clearing that, your start command appears to do nothing whatsoever, with no error, and you conclude the fix failed when it worked.</div>
+  </li>
+  <li>Now stop it happening again. Leave the container, and from the <b>host</b> give it more room.
+    <span class="cmd">pct resize &lt;its-id&gt; rootfs +16G</span>
+    <div class="why"><b>Why this is safe to do while it is running:</b> growing a disk only adds unused space at the end of it. Nothing already written is moved or rewritten, so there is nothing to lose and no need to stop the app. Shrinking one is an entirely different and genuinely dangerous operation, which is why Proxmox will not do it.</div>
+    <div class="why"><b>Why to bother when you just freed the space:</b> because you have not fixed anything, you have bought time. Eight gigabytes was too small for the job from the start, and the same cache will fill it again. This is the difference between clearing a blockage and widening the pipe.</div>
+  </li>
+</ol>
+<div class="box safe"><span class="lbl">Worth doing before anything is broken</span>
+Run <code>df -h /</code> inside each container occasionally, or put a disk usage tile on the dashboard you built earlier. Every fault in this subsection is trivially avoidable and completely invisible until the moment it takes a service down, which is a bad combination to leave unwatched.</div>
 
 <div class="recap"><span class="lbl">Recap</span>
 <ul><li>Snapshots undo changes; <b>backups (3-2-1)</b> survive disasters. They're different.</li>
