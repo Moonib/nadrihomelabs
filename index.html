@@ -601,10 +601,10 @@ DNS, DHCP, ports and IP addressing are the backbone of <b>CompTIA Network+</b> a
 <p class="a">Because the whole network will point at that address for DNS; if DHCP changed it, lookups would break. Servers need predictable addresses.</p></div>
 
 <!-- ===================== JELLYFIN ===================== -->
-<h2 id="jellyfin"><span class="n">7.</span>Jellyfin: watching your media (clients, servers, ports and transcoding)</h2>
-<p>You've built a container once, so this reinforces it, then teaches the client/server model and what "transcoding" really means. Nothing here affects the household. You are building the player first and giving it a library in the next section, because the library setup needs a container to point into and this is that container.</p>
+<h2 id="jellyfin"><span class="n">7.</span>Jellyfin: watching your media (clients, servers, ports and direct play)</h2>
+<p>You've built a container once, so this reinforces it, then teaches the client/server model and the single most important idea in running your own media server: making sure the server never has to work hard. Nothing here affects the household. You are building the player first and giving it a library in the next section, because the library setup needs a container to point into and this is that container.</p>
 <ol class="steps">
-  <li>Create a second container the same way (or, since it's fiddlier to wire up the media drive and graphics, use the <b>community-scripts.org Jellyfin</b> helper and choose to enable hardware acceleration). Either way you'll get a Jellyfin address ending <code>:8096</code>.
+  <li>Create a second container the same way (or, since it's fiddlier to wire up the media drive and graphics, use the <b>community-scripts.org Jellyfin</b> helper and say yes when it offers hardware acceleration). Either way you'll get a Jellyfin address ending <code>:8096</code>.
     <div class="why"><b>Why a helper is fine here:</b> Jellyfin plus graphics passthrough is exactly the "fiddly, low-learning" bit where a script earns its keep. You already learned container-building by hand with Pi-hole earlier; nothing lost.</div>
   </li>
   <li>Write down two things before you move on: the container's <b>ID number</b> (the number Proxmox shows next to it in the left-hand list, usually <code>101</code> or similar), and <b>how you created it</b>, by hand or via the helper script.
@@ -613,27 +613,41 @@ DNS, DHCP, ports and IP addressing are the backbone of <b>CompTIA Network+</b> a
   <li>Open the <code>:8096</code> address and create your admin account. When the setup wizard asks you to add a media library, <b>skip it</b> and finish the wizard; you'll come back and add it properly in the next section.
     <div class="why"><b>Why skip it:</b> the folder you want to point at doesn't exist inside this container yet. Adding a library now means pointing at an empty path and then editing it later, which is just the same job done twice.</div>
   </li>
-  <li>Install the free <b>Jellyfin</b> app on a TV or phone, enter the server address and sign in.
+  <li>Install a Jellyfin app on a phone or computer, enter the server address and sign in. <b>Which app you pick is a real decision, not a formality</b>, so take it from this list rather than searching the store for "Jellyfin" and tapping the first result:
+    <ul>
+      <li><b>iPhone or iPad:</b> <b>Streamyfin</b></li>
+      <li><b>Android phone or tablet:</b> <b>Findroid</b></li>
+      <li><b>Windows or Mac:</b> <b>Jellyfin Media Player</b>, which is a proper installed program, not the web page in a browser tab</li>
+      <li><b>Samsung or LG smart TV:</b> the official <b>Jellyfin</b> app, or <b>Moonfin</b>. TVs are the one place with no better option, because those platforms are closed and nobody can build a better player for them</li>
+    </ul>
+    <div class="why"><b>Why this list and not the obvious one:</b> the official mobile apps and the browser player are built on web technology, which is only allowed to play the handful of video formats the browser itself understands. Anything outside that list gets refused, and refusing is what forces your server into the expensive work described in the box below. The three apps named above are built around <b>MPV</b>, a playback engine that decodes essentially any format that exists, so they refuse almost nothing. The choice of app decides how hard your server has to work, which is not something you'd guess from an app store listing.</div>
     <div class="see">You'll see: an empty library and a working connection. Empty is the correct result at this point. Proving the app reaches the server now means that if something breaks after you add the drive, you already know the network side was fine.</div>
   </li>
 </ol>
 
-<div class="box learn"><span class="lbl">Understand this: the client/server model, and transcoding</span>
+<div class="box learn"><span class="lbl">Understand this: the client/server model, and why "direct play" is the whole goal</span>
 Jellyfin shows you the pattern behind almost all software you use. The <b>server</b> (on your box, port 8096) holds the data and does the work; the <b>client</b> (the app on your TV) requests it. Your web browser and websites, your email app and mail servers, all work this way.
-<br><br><b>Transcoding</b> is converting video from one format or quality to another on the fly, because your phone on 4G can't handle the same huge file your TV can. Doing that maths on the main processor (CPU) is slow and heavy. <b>Quick Sync</b> is a dedicated video-processing circuit built into the Intel chip's graphics that does it far more efficiently. Choosing to offload work to specialised hardware instead of the general CPU is a real architecture decision you'll see again (it's also why AI uses GPUs).</div>
+<br><br>When somebody presses play, one of two things happens, and the gap between them is enormous. In <b>direct play</b>, the server hands the file over exactly as it is and the app does all the decoding itself. The server is barely working, it's doing little more than copying a file across the network. In <b>transcoding</b>, the app says it cannot handle this file, so the server rebuilds the video into a different format on the fly, frame by frame, for the entire length of whatever is being watched.
+<br><br>So transcoding is not a feature you're aiming to use. It's a rescue. It's where nearly every complaint about stuttering, buffering and a noisy machine comes from, and here's the part that surprises people: it's almost always triggered by the app being incapable, not by the server being weak. A better app on the same server, playing the same file, simply doesn't ask for it.
+<br><br>You'll also see <b>hardware acceleration</b> mentioned constantly in Jellyfin's world, and specifically <b>Quick Sync</b>, a dedicated video-processing circuit built into Intel chips that does conversion work far more efficiently than the general processor. Switching it on is worth doing because it's a single checkbox and costs nothing. Just be clear about what it is: it makes a bad outcome less painful. It doesn't make transcoding a good idea.</div>
 
 <div class="box map"><span class="lbl">You'll meet this again</span>
-Client/server, ports and services are foundational to <b>everything</b>, and "hardware acceleration / offloading" connects straight to why cloud providers rent GPU instances. When AZ-900 lists Azure's specialised compute options, you'll recognise the same idea you used for Jellyfin.</div>
+Client/server, ports and services are foundational to <b>everything</b>. The other idea sitting inside this section, handing a particular kind of work to purpose-built hardware rather than the general processor, is exactly why cloud providers rent GPU instances and why AI runs on graphics chips. When AZ-900 lists Azure's specialised compute options, you'll recognise the shape of it. But the bigger lesson is the one worth carrying into any job: the cheapest way to make a system fast is to stop asking it to do work it never needed to do.</div>
 
 <div class="recap"><span class="lbl">Recap</span>
 <ul><li>Software is mostly <b>client/server</b>: a server provides, a client consumes, over a port.</li>
-<li><b>Transcoding</b> reshapes video on the fly; <b>Quick Sync</b> offloads it to purpose-built hardware.</li></ul></div>
+<li><b>Direct play</b> means the server hands the file over untouched and the app decodes it. That's the target, every single time.</li>
+<li><b>Transcoding</b> is the server rebuilding the video on the fly because the app can't cope. It's the expensive fallback, and the usual cause is a weak app rather than a weak server.</li>
+<li>Which app you install therefore decides which of the two you get, which is why <b>Streamyfin</b>, <b>Findroid</b> and <b>Jellyfin Media Player</b> are named specifically.</li>
+<li><b>Quick Sync</b> is worth enabling as a safety net, but it improves the fallback rather than removing the need for one.</li></ul></div>
 
 <div class="quiz"><span class="lbl">Check yourself</span>
 <p class="q">Q1. In the client/server model, which side is the Jellyfin app on your phone, and which side is on your OptiPlex?</p>
 <p class="a">The phone app is the client (requests and plays); the OptiPlex runs the server (stores the media and serves it).</p>
-<p class="q">Q2. Why is hardware transcoding (Quick Sync) better than making the CPU do it?</p>
-<p class="a">Quick Sync is dedicated video hardware that does the conversion far more efficiently, freeing the CPU and letting more people stream at once.</p></div>
+<p class="q">Q2. What's the difference between direct play and transcoding, and which one are you aiming for?</p>
+<p class="a">Direct play hands the file over untouched and lets the app decode it, so the server does almost nothing. Transcoding makes the server rebuild the video on the fly because the app can't handle it. Direct play is the target; transcoding is a rescue you want to avoid triggering.</p>
+<p class="q">Q3. A film stutters and the machine gets loud. What should you suspect first, and where's the fix likely to be?</p>
+<p class="a">That it's transcoding. The fix is usually at the app rather than the server, because a more capable app would have played the same file as it was.</p></div>
 
 <h3>A nicer way to watch: the Fladder app</h3>
 <div class="box plain"><span class="lbl">What this actually is</span>
@@ -1034,8 +1048,8 @@ docker ps</span>
     <div class="why"><b>The part after the port is a <b>path</b>:</b> an address gets you to the machine and the port gets you to the right app on it, but many apps then keep different pages at different names underneath, written with slashes, exactly like folders. Visiting the bare address here lands somewhere unhelpful; the settings page lives at <code>/stremio/configure</code> and nowhere else. This is a normal thing for apps to do and you will meet it again.</div>
     <div class="see">You'll see: AIOStreams' configuration page.</div>
   </li>
-  <li>Get your bearings first. Down the left of this page is a sidebar with six entries: <b>Services</b>, <b>Addons</b>, <b>Filters</b>, <b>Sorting</b>, <b>Formatter</b> and <b>Save &amp; Install</b>. You only need three of them, in that order, and the rest are for tuning later.
-    <div class="why"><b>What the six are for:</b> Services is <i>who fetches the video</i>, Addons is <i>where titles and streams are looked up</i>, and Save &amp; Install is <i>how you get the result out</i>. Filters, Sorting and Formatter only change which results you see first and how they are labelled, so leaving them untouched is a perfectly good first configuration.</div>
+  <li>Get your bearings first. Down the left of this page is a sidebar with six entries: <b>Services</b>, <b>Addons</b>, <b>Filters</b>, <b>Sorting</b>, <b>Formatter</b> and <b>Save &amp; Install</b>. You need four of them, in that order, and the other two are for tuning later.
+    <div class="why"><b>What the six are for:</b> Services is <i>who fetches the video</i>, Addons is <i>where titles and streams are looked up</i>, Filters is <i>which results you refuse</i>, and Save &amp; Install is <i>how you get the result out</i>. Sorting and Formatter only change which results you see first and how they are labelled, so leaving those two untouched is a perfectly good first configuration.</div>
   </li>
   <li>Open <b>Services</b>, find <b>TorBox</b> in the list, and click the <b>cogwheel</b> at the end of its row to open its settings. Paste in the API token from Step B, then close that panel.
     <div class="why"><b>Why a whole list of them:</b> AIOStreams supports many debrid providers and you are only using one. If you ever add a second, the order of this list is the order it prefers them in.</div>
@@ -1043,6 +1057,10 @@ docker ps</span>
   <li>Open <b>Addons</b>, then the <b>Marketplace</b> tab inside it. Search for <b>TMDB</b>, click <b>Configure</b>, leave the options as they are, and click <b>Install</b>. Then do the same again for <b>Comet</b>.
     <div class="why"><b>"Install" is a misleading word here:</b> nothing is downloaded onto your machine and nothing new starts running. It means adding that source to your own personal blend, which is the entire job AIOStreams does. Think of it as ticking an ingredient rather than installing a program.</div>
     <div class="why"><b>Why you need both of them:</b> they answer different questions. <b>TMDB</b> is a large public film and television database, free to use, and it supplies the titles, posters, years and descriptions, so it knows <i>that a film exists</i>. <b>Comet</b> goes looking for <i>where a copy can actually be fetched from</i>. With only the first, you end up with a beautiful library full of titles that will not play.</div>
+  </li>
+  <li>Open <b>Filters</b>, scroll to the <b>Size</b> section, and set a <b>global maximum size</b> of around <b>20GB for movies</b> and around <b>5GB for series</b>. Leave the minimums alone. There is also a per-resolution version of the same thing below; ignore it for now, the global limits are enough.
+    <div class="why"><b>Why you are deliberately refusing the biggest files:</b> the sources behind this setup include <b>remuxes</b>, which are untouched rips straight from a disc with nothing compressed at all. A single film can be 60GB or 80GB. Nothing in your house benefits from that. Your television cannot show more detail than a good 15GB copy already contains, but every device between here and the screen has to move all 80GB of it in real time, and that is where stuttering comes from. Refusing them at this stage is one of the highest-value settings in this entire guide, and it costs you picture quality you would need a trained eye and a much larger television to notice.</div>
+    <div class="see">You'll see: nothing dramatic. This setting shows its worth later, as the absence of a problem rather than the presence of a feature.</div>
   </li>
   <li>Open <b>Save &amp; Install</b>, the last entry in the sidebar. Under <b>Save Configuration</b>, set a password and click <b>Save</b>.
     <div class="why"><b>What that password is for:</b> it locks this configuration, not the app. Anyone on your network who opens this address could otherwise change which services and sources you use, or read the token you pasted in earlier. It also comes back out with the <b>UUID</b> shown just above it, and those two together are what let you return and edit this configuration later, so both belong in your notes file.</div>
@@ -1107,19 +1125,44 @@ Any time you go back to AIOStreams and alter which services or addons it uses, r
   <li>Play one episode of a series too, since the series path uses the metadata fetcher from Step G and can fail independently of films.</li>
 </ol>
 
+<h3>Step I, keep it on direct play, now that the file lives somewhere else</h3>
+<div class="box learn"><span class="lbl">Understand this: transcoding was expensive before, and it's worse now</span>
+Back in the Jellyfin section you met the two ways a video can reach a screen: <b>direct play</b>, where the server hands the file over untouched, and <b>transcoding</b>, where the server rebuilds it on the fly because the app can't cope. That mattered then. It matters far more now, and it's worth understanding why rather than just being told.
+<br><br>When the file sat on your own drive, transcoding meant the server reading from a disk two feet away, which is about as fast and reliable as anything gets. Nothing on this build sits on a disk any more. The video lives on your debrid provider's servers, out on the internet, and arrives through your broadband connection.
+<br><br>That changes the maths in two ways. To rebuild a video on the fly the server has to read the source <i>faster than it plays</i>, so it's fighting to stay ahead over a connection it doesn't control. And the moment somebody skips forward, the server has to stop and ask for a chunk from the middle of a file it doesn't hold, wait for that request to travel out and come back, and only then resume. That pause is exactly the buffering people describe when they say seeking feels sluggish, and it doesn't happen at all during direct play, because the app is fetching its own data in a steady line and the server never gets involved.
+<br><br>So the size limit you set in Step E and the app you chose back in the Jellyfin section are not two separate bits of housekeeping. They are the same decision approached from both ends: <b>keep the file small enough to move comfortably, and use an app capable enough that the server is never asked to touch it.</b></div>
+<ol class="steps">
+  <li>Play something and, while it's playing, open <b>Dashboard</b> in Jellyfin and look at the active session. It tells you plainly whether the stream is direct playing or transcoding, and if it's transcoding it gives a reason in words.
+    <div class="see">You'll see: ideally the words <b>Direct playing</b>. If instead you see <b>Transcoding</b> with a reason such as "the video codec is not supported", that reason is naming the app, not the file. The same file in a capable app plays untouched.</div>
+    <div class="why"><b>Why this screen is worth knowing by heart:</b> it turns a vague complaint ("it's laggy") into a specific fact you can act on. Nearly every media server problem people give up on is one they never checked here first.</div>
+  </li>
+  <li>If it says transcoding and you were watching in a browser or the official mobile app, try the same title again in one of the apps named in the Jellyfin section, and check the Dashboard once more.
+    <div class="why"><b>Why the browser is the worst case:</b> a web page is only allowed to play the small handful of formats the browser itself understands, so it refuses the most, which forces the server to work the hardest. It's a fine tool for testing, as Step H used it, and a poor one for actually watching.</div>
+  </li>
+</ol>
+<div class="box plain"><span class="lbl">Subtitles, and the trap inside them</span>
+Subtitles come in two kinds and the difference is not cosmetic. <b>Text subtitles</b> (files ending <code>.srt</code>, or an <code>ASS</code> track inside the video) are just words with timings, so an app can draw them over the picture for free. <b>Image subtitles</b> (<b>PGS</b> and <b>VobSub</b>, very common inside <code>.mkv</code> rips) are not words at all, they are tiny pictures of words. There is no way to draw those as text, they have to be painted onto the video itself, and painting anything onto the video means rebuilding every frame, which is a transcode.
+<br><br>That's why subtitles are such a common cause of a film playing perfectly until somebody turns captions on, at which point everything falls apart. The fix is the same fix as everything else in this section: the MPV-based apps render image subtitles themselves without asking the server to burn them in. It's the same single decision paying off a third time.</div>
+
 <div class="box safe"><span class="lbl">Only tear the old stack down once this one plays</span>
 If you are moving here from the old download stack rather than starting fresh, resist removing it until a title has actually streamed through Gelato at least once. The moment to retire Sonarr, Radarr, Prowlarr, qBittorrent, gluetun and Jellyseerr is after the new route is proven, not before, so the household is never left with a library that neither downloads nor streams. Once Gelato plays cleanly, the old <code>docker compose down</code> on the arr stack is safe to run.</div>
 
 <div class="recap"><span class="lbl">Recap</span>
 <ul><li>This route keeps almost nothing on disk. It fills the library with catalogue entries rather than files, and fetches the real video on demand when someone presses play, the shop window rather than the warehouse.</li>
 <li>Three pieces do it: <b>TorBox</b> (the paid engine that makes playback instant), <b>AIOStreams</b> (the adapter that gathers sources into one feed, run as a Docker container), and the <b>Gelato</b> plugin inside Jellyfin (which writes the catalogue entries and resolves a stream on play).</li>
-<li>The trade is convenience for ownership: it fills itself and never stalls, but it rents from an outside service, so nothing plays if that service or subscription goes away. <b>Gelato needs Jellyfin 10.11 or newer.</b></li></ul></div>
+<li>The trade is convenience for ownership: it fills itself and never stalls, but it rents from an outside service, so nothing plays if that service or subscription goes away. <b>Gelato needs Jellyfin 10.11 or newer.</b></li>
+<li>Because the video now arrives over the internet rather than off a local disk, <b>transcoding hurts far more than it used to</b>, and skipping forward is where you feel it first.</li>
+<li>Two settings prevent nearly all of it: a <b>size limit</b> in AIOStreams so oversized files never reach you, and a <b>capable app</b> so the server is never asked to rebuild anything. Jellyfin's Dashboard tells you which of the two is happening at any moment.</li></ul></div>
 
 <div class="quiz"><span class="lbl">Check yourself</span>
 <p class="q">Q1. Your library shows thousands of films but the disk is nearly empty. Where is the actual video for a film you have not watched yet?</p>
 <p class="a">Nowhere on your disk. Each title is only an entry in Jellyfin's catalogue until you press play, at which point Gelato fetches the real stream on demand from your debrid engine through AIOStreams. Nothing is stored unless you deliberately pin it later.</p>
 <p class="q">Q2. What is the one thing that stops working if your TorBox subscription lapses, and why is that different from the old download setup?</p>
-<p class="a">Playback stops entirely, because the debrid engine that actually serves the video is gone, leaving only empty placeholder cards. The old download setup kept real files on your own disk, so they would keep playing regardless of any subscription.</p></div>
+<p class="a">Playback stops entirely, because the debrid engine that actually serves the video is gone, leaving only empty placeholder cards. The old download setup kept real files on your own disk, so they would keep playing regardless of any subscription.</p>
+<p class="q">Q3. Why does transcoding cause more trouble here than it would if your films were sitting on the drive in the machine?</p>
+<p class="a">Because the source is out on the internet rather than two feet away. To rebuild the video on the fly the server has to read it faster than it plays over a connection it doesn't control, and every time somebody skips forward it has to request a chunk from the middle of a file it doesn't hold and wait for that round trip.</p>
+<p class="q">Q4. Somebody turns on subtitles and a film that was playing fine starts stuttering. What's happening?</p>
+<p class="a">The subtitle track is almost certainly image-based (PGS or VobSub), which cannot be drawn as text and has to be painted onto the video itself. That means rebuilding every frame, which is a transcode. A capable app renders those itself instead of asking the server to do it.</p></div>
 
 <div class="box map"><span class="lbl">You'll meet this again</span>
 The rent versus own decision you just made is the same one every organisation makes between <b>streaming or a content delivery network</b> and <b>local storage</b>, and between renting cloud capacity and buying your own hardware, an explicit cost and reliability trade in AZ-900's pricing and <b>capex versus opex</b> topics. Extending an application by dropping in a <b>plugin</b>, and wiring services together by handing one an <b>API token</b> for another, are both everyday patterns in real software integration. And <b>Docker</b> with a <b>docker-compose.yml</b> is still exactly the infrastructure as code idea behind <b>Azure Container Instances</b> and <b>Kubernetes</b> at cloud scale, describing what should run in one file rather than clicking through installs by hand.</div>
@@ -1373,9 +1416,135 @@ smbpasswd -a nadri</span>
 <p class="q">Q3. What would <code>guest ok = yes</code> actually do, and why is it avoided here?</p>
 <p class="a">It would let anyone on the network open the share with no password at all. Fine for something genuinely public, but not appropriate for a share that will hold family files.</p></div>
 
+<!-- ===================== NEXTCLOUD ===================== -->
+<h2 id="nextcloud"><span class="n">13.</span>Nextcloud: the same files, but with history, sharing and an app</h2>
+<p>The share you just built is deliberately simple: a folder that appears on other machines. This one sits alongside it and does the job Google Drive or Dropbox does, which is a different job than it first appears. You'll also meet a new way of getting software, one where somebody else has already assembled the whole thing for you.</p>
+
+<div class="box plain"><span class="lbl">Why build this when the last section already shared your files</span>
+It's a fair question, and the answer is that Samba shares a folder while Nextcloud manages files, which sound the same and are not. Samba gives you a drive on the network: open it, drag things in, done. If somebody saves over a document, the old version is gone. If your dad wants to send a file to someone outside the house, he can't, because the share only exists on your network. If your phone is on mobile data, it can't see the share at all.
+<br><br>Nextcloud keeps previous versions of every file, so overwriting something is undoable. It has a proper recycle bin. It hands out share links that work from anywhere. It has phone and desktop apps that sync a folder continuously, the way Dropbox does, rather than needing you to be connected to a share. And it has accounts, so each person gets their own space plus whatever is deliberately shared.
+<br><br>The honest trade: it's a full web application with a database behind it, so it's heavier and there is more that can go wrong. Samba is a folder. If all you'll ever do is drag films onto a drive, Samba was already enough and skipping this section costs you nothing.</div>
+
+<div class="box learn"><span class="lbl">Understand this: an appliance, which is a third way of getting software</span>
+So far you've met two ways to get an app running. You built one by hand (Pi-hole: make an empty container, install into it, configure it). You ran helper scripts that did that same work for you (Jellyfin, Homepage, and the rest). This section introduces the third: an <b>appliance</b>.
+<br><br>An appliance isn't installed at all. Somebody else already built the whole machine, operating system, web server, database, the app and its configuration all assembled and tested together, then saved the finished result as a <b>template</b>, which is a frozen copy of an entire working system. You don't install anything. You stamp out a copy of theirs and switch it on.
+<br><br><b>TurnKey Linux</b> is a long-running project that publishes about a hundred of these, and Proxmox carries their catalogue built in, which is why nothing here downloads from a stranger's website. The trade is the usual one: an appliance is the fastest and most reliable route to a working system, and in exchange you learn less about the software's insides and you accept how somebody else chose to arrange it. That's a reasonable deal for Nextcloud specifically, because installing it by hand means setting up a web server, a database, a PHP runtime and a pile of tuning, which is a lot of fiddling for very little insight.
+<br><br>This idea scales up almost exactly. Every cloud provider runs a marketplace of prebuilt machine images for the same reason, and picking one instead of building from bare metal is the same decision with the same trade.</div>
+
+<h3>Step A, create the appliance</h3>
+<ol class="steps">
+  <li>From the <b>Proxmox host</b> Shell, first check the appliance you want is actually in the catalogue:
+    <span class="cmd">pveam available --section turnkeylinux | grep -i nextcloud</span>
+    <div class="see">You'll see: one line naming a template file, something like <code>debian-12-turnkey-nextcloud_18.1-1_amd64.tar.gz</code>. If you see nothing at all, run <code>pveam update</code> first to refresh the catalogue and try again.</div>
+    <div class="why"><b>Why check before doing anything:</b> the script in the next step builds its menu from this exact list. Ten seconds here tells you whether the rest of the section is going to work, which is a much better place to find out than halfway through a wizard.</div>
+  </li>
+  <li>Run the helper that wraps the whole thing:
+    <span class="cmd">bash -c "$(curl -fsSL https://raw.githubusercontent.com/community-scripts/ProxmoxVE/main/turnkey/turnkey.sh)"</span>
+    <div class="see">You'll see: a blue menu listing every TurnKey appliance available. Scroll to <b>nextcloud</b>, select it, then answer three short questions: which storage pool to use, which container ID to give it (accept the number it suggests), and a hostname (<code>nextcloud</code> is fine). It then downloads the template, which takes a minute or two the first time, builds the container and starts it.</div>
+    <div class="why"><b>What this script is and isn't doing:</b> unlike the other community scripts you've run, this one installs no software whatsoever. Proxmox can already deploy TurnKey templates on its own; this just puts a menu in front of a job that would otherwise be several commands with long filenames in them. Everything it creates is an ordinary unprivileged container exactly like the ones you built yourself.</div>
+  </li>
+  <li>Read the last few lines it prints and write down the <b>IP address</b>, the login (<code>root</code>) and the <b>password</b> it generated. It also saves that password to a file on the host, which you can read back at any time:
+    <span class="cmd">cat ~/turnkey-nextcloud.creds</span>
+    <div class="why"><b>Why it generated one rather than asking you:</b> a random password means the appliance is never sitting there with a default that everybody on the internet knows. It's the same reasoning as the guide's earlier habit of not leaving anything on a known default. Note it lives on the <b>host</b>, in root's home folder, not inside the container.</div>
+  </li>
+  <li>Set a <b>DHCP reservation</b> for it in your router, the same habit as every other container.
+    <div class="why"><b>Why it matters more here:</b> Nextcloud writes its own address into its configuration and refuses connections that arrive under a name it doesn't recognise, as a security measure. An address that changes underneath it turns into a locked door with a confusing error behind it.</div>
+  </li>
+</ol>
+
+<h3>Step B, finish the setup in the container's console</h3>
+<div class="box plain"><span class="lbl">What "console" means here</span>
+Everything you've run so far, you ran through the <b>Shell</b> button on the Proxmox host, then reached apps through a web page. This appliance is different: the first time it boots, it runs a setup wizard on its own screen, and the only way to see that screen is to open the container's own console. In the Proxmox web page, click the container in the left-hand list, then <b>Console</b>. That is a virtual monitor plugged into that container, exactly as if you'd walked over to a physical machine and looked at it.</div>
+<ol class="steps">
+  <li>Open the container's <b>Console</b>. The wizard is either already waiting or appears within a few seconds of the container finishing its first boot. Work through its questions, which it asks one screen at a time:
+    <ul>
+      <li>A password for the <b>Nextcloud admin account</b>. This is the one you'll actually use every day, so make it a real one and put it in your notes file.</li>
+      <li>A password for the <b>database</b> (it may call this MySQL or MariaDB). You will almost certainly never type this again, so let it be long and forgettable, but still write it down.</li>
+      <li>An <b>email address</b> for the admin account, and possibly a domain name. Where it asks for a domain, put the container's IP address.</li>
+      <li>Offers to register with the TurnKey Hub, install security updates, and similar. Declining the hub is fine. Accepting security updates is worth doing.</li>
+    </ul>
+    <div class="safe"><b>Check your keyboard before typing a password here.</b> This console is not a web page and it may assume a US keyboard layout regardless of yours. On a UK keyboard that quietly swaps a few symbols, notably <code>@</code> and <code>"</code>, and <code>£</code> may not exist at all. The screen shows dots either way, so you find out later, at a login box, with no idea why. Sticking to letters and numbers for these first passwords sidesteps it entirely, and you can change them to anything you like afterwards from inside the web page where the keyboard behaves normally.</div>
+  </li>
+  <li>When the wizard finishes it drops you at an ordinary login prompt. Leave it there and go back to your browser.</li>
+</ol>
+
+<h3>Step C, first login</h3>
+<ol class="steps">
+  <li>Visit <code>https://&lt;its-ip&gt;</code> in a browser. Note the <b>s</b>: this appliance serves on HTTPS, port 443, and will not answer plain <code>http</code> in the usual way.
+    <div class="see">You'll see: the same "your connection is not private" warning you met when you first opened Proxmox. Same cause, a self-signed certificate, and the same answer: click through the advanced option and continue. It's your own machine on your own network.</div>
+  </li>
+  <li>Log in as <code>admin</code> with the Nextcloud password from Step B.
+    <div class="see">You'll see: the Nextcloud files page, with a few sample documents in it. Delete them whenever you like.</div>
+  </li>
+</ol>
+<div class="box plain"><span class="lbl">Three other doors this appliance leaves open</span>
+Alongside the main page, TurnKey appliances also serve a system control panel on port <code>12321</code>, a database editor on <code>12322</code>, and a web-based terminal on <code>12320</code>. You do not need any of them, and every one of them is another way in, so it's worth knowing they exist rather than discovering them by accident later. Leaving them alone is fine on your own network. If you ever expose this container beyond it, they are the first thing to shut off.</div>
+
+<h3>Step D, put the actual files on the big drive</h3>
+<div class="box learn"><span class="lbl">Understand this: two numbers for the same user</span>
+This container was built with 8GB of disk, which is fine for the software and hopeless for a family's documents. So you'll do the same bind mount you already know from the storage section, and then meet the snag that section warned you about, properly this time.
+<br><br>This container is <b>unprivileged</b>, which means the user accounts inside it are not the same as the user accounts outside it. Proxmox shifts every one of them by <b>100000</b>. The web server inside runs as a user numbered <b>33</b>, so as far as the host is concerned, the thing writing those files is user <b>100033</b>. Neither number is wrong, they're the same account seen from two sides of a wall.
+<br><br>This is why <code>chown</code> run from inside the container fails with "Operation not permitted", and why the fix has to be run from the host using the shifted number. Get this backwards and you get a folder the container can see and cannot write to, which surfaces as a vague error about storage being unavailable rather than anything about permissions.</div>
+<ol class="steps">
+  <li>From the <b>host</b>, make the folder and hand it to the right user:
+    <span class="cmd">mkdir -p /mnt/media/nextcloud
+chown -R 100033:100033 /mnt/media/nextcloud</span>
+  </li>
+  <li>Still on the host, attach it into the container and restart, using its ID from Step A:
+    <span class="cmd">pct set &lt;its-id&gt; -mp0 /mnt/media/nextcloud,mp=/mnt/ncdata
+pct reboot &lt;its-id&gt;</span>
+    <div class="why"><b>Reading it again, since this is the third time:</b> <code>-mp0</code> is which mount slot, <code>/mnt/media/nextcloud</code> is the real folder on the host, and <code>mp=/mnt/ncdata</code> is the name you're inventing for how it appears inside. The first path already exists; the second one doesn't until this command runs.</div>
+  </li>
+  <li>Get inside the container and find where Nextcloud currently keeps its files:
+    <span class="cmd">pct enter &lt;its-id&gt;
+grep datadirectory /var/www/nextcloud/config/config.php</span>
+    <div class="see">You'll see: a line reading something like <code>'datadirectory' =&gt; '/var/www/nextcloud/data',</code>. If instead you get "No such file or directory", the appliance has put things somewhere else, and <code>find / -name config.php -path "*nextcloud*" 2>/dev/null</code> will tell you where.</div>
+  </li>
+  <li>Stop the web server, move what's there onto the drive, and point the configuration at the new home:
+    <span class="cmd">systemctl stop apache2
+cp -a /var/www/nextcloud/data/. /mnt/ncdata/
+nano /var/www/nextcloud/config/config.php</span>
+    Change the <code>datadirectory</code> line to read <code>'datadirectory' =&gt; '/mnt/ncdata',</code> and save with Ctrl+O, Enter, Ctrl+X. Then start it again:
+    <span class="cmd">systemctl start apache2</span>
+    <div class="why"><b>Why stop it first:</b> copying files out from under a running application is how you end up with half a file. Stopping it for the ten seconds this takes removes the entire category of problem. This is the same instinct as snapshotting before a change, just at a smaller scale.</div>
+    <div class="why"><b>Why <code>cp -a</code> and the dot:</b> the <code>-a</code> preserves ownership and permissions rather than making everything belong to whoever ran the command, which matters enormously here. The trailing <code>/.</code> means "the contents of this folder" rather than the folder itself, which is the difference between filling <code>/mnt/ncdata</code> and creating <code>/mnt/ncdata/data</code> inside it.</div>
+  </li>
+  <li>Reload the Nextcloud page in your browser and confirm it still works, then check the space it thinks it has:
+    <span class="cmd">df -h /mnt/ncdata</span>
+    <div class="see">You'll see: the size of your big drive rather than the container's small disk. That's the whole point of this step, so it's worth actually looking.</div>
+  </li>
+</ol>
+
+<h3>Step E, accounts and the apps</h3>
+<ol class="steps">
+  <li>In Nextcloud, click your avatar top right, then <b>Users</b>. Add one account per person. You can set a <b>quota</b> per person, which caps how much of the drive each of them can fill.
+    <div class="why"><b>Why separate accounts rather than one shared login:</b> each person gets a private space by default, sharing becomes something you choose rather than the only option, and if somebody's laptop is lost you revoke one account instead of changing a password everybody has to relearn. It's the same least-privilege reasoning as the service account in the Samba section, applied to people instead of software.</div>
+  </li>
+  <li>On each person's phone, install the free <b>Nextcloud</b> app; on laptops, the <b>Nextcloud Desktop</b> client. Both ask for the server address (<code>https://&lt;its-ip&gt;</code>) and that person's login.
+    <div class="see">You'll see: the desktop client creates a Nextcloud folder that syncs continuously in the background, and the phone app can be set to upload photos automatically. Away from home, none of this reaches the server unless Tailscale is connected, exactly as with everything else in this build.</div>
+  </li>
+</ol>
+
+<div class="box map"><span class="lbl">You'll meet this again</span>
+Deploying from a prebuilt image rather than installing from scratch is how most cloud infrastructure actually gets created, and every provider runs a marketplace of them. The UID shifting you did in Step D is the same idea as the identity mapping that shows up whenever one system's users have to be understood by another, which is most of what enterprise identity work turns out to be. And per-user quotas on shared storage are ordinary administration, the same lever a cloud provider pulls on you.</div>
+
+<div class="recap"><span class="lbl">Recap</span>
+<ul><li>An <b>appliance</b> is a whole prebuilt system saved as a <b>template</b> and stamped out rather than installed. Fastest route to something working, at the cost of learning the software's insides.</li>
+<li>Nextcloud does a different job from Samba: version history, a recycle bin, share links, sync apps and per-person accounts, in exchange for being much heavier than a shared folder.</li>
+<li>Unprivileged containers shift their user numbers by <b>100000</b>, so ownership on shared folders has to be fixed <b>from the host</b> using the shifted number, never from inside.</li>
+<li>Moving an app's data means moving the files <b>and</b> telling the app where they went. Doing only one of the two is the usual mistake.</li></ul></div>
+
+<div class="quiz"><span class="lbl">Check yourself</span>
+<p class="q">Q1. What's the practical difference between an appliance and the helper scripts you ran earlier?</p>
+<p class="a">A helper script installs software into a fresh container, step by step, on your machine. An appliance is a complete system somebody already built and tested, saved as a template, so nothing is installed at all, you just deploy a copy of theirs.</p>
+<p class="q">Q2. The web server inside the container runs as user 33. Why does <code>chown 33:33</code> from the host not do what you want?</p>
+<p class="a">Because the container is unprivileged, so its users are shifted by 100000 on the host side. From the host, that user is 100033. Using 33 would hand the folder to a completely different account.</p>
+<p class="q">Q3. You bind mounted the drive in and copied the files across, but Nextcloud still reports it's nearly full. What did you miss?</p>
+<p class="a">The <code>datadirectory</code> line in <code>config.php</code>. The files moved, but the application was never told, so it's still reading and writing to the old location on the small container disk.</p></div>
+
 <!-- ===================== OPS ===================== -->
 <div class="partbar">Part 4 · Keep it running, and where to take it next</div>
-<h2 id="ops"><span class="n">13.</span>Ops discipline: the habits that separate hobbyists from pros</h2>
+<h2 id="ops"><span class="n">14.</span>Ops discipline: the habits that separate hobbyists from pros</h2>
 <p>You now have a real, working system that the household relies on. These are the habits that keep it healthy, and they're the same disciplines that separate a hobbyist from someone doing this professionally. Build them in now, before you go adding more.</p>
 <div class="box learn"><span class="lbl">Understand this: a snapshot is not a backup</span>
 A <b>snapshot</b> saves a container's state <em>on the same disk</em>: brilliant for "undo my change", useless if the disk itself dies. A <b>backup</b> is a separate copy kept elsewhere. Pros follow the <b>3-2-1 rule</b>: 3 copies of important data, on 2 different media, with 1 kept off-site. Even a mirror of two drives isn't a backup, because deleting a file deletes it on both. This distinction is a genuine exam and interview topic.</div>
@@ -1418,18 +1587,13 @@ This patches the operating system underneath each app, not the app itself. Jelly
 <li>Documentation, regular patching, and least privilege are the everyday disciplines of real operations and security work.</li></ul></div>
 
 <!-- ===================== ROADMAP ===================== -->
-<h2 id="roadmap"><span class="n">14.</span>The roadmap: the other apps worth adding</h2>
+<h2 id="roadmap"><span class="n">15.</span>The roadmap: the other apps worth adding</h2>
 <p>The rest of what was floated early on, each its own separate container, none set up yet. Every one of these follows the exact pattern you already know by heart: run the install command from the Proxmox host, accept the defaults, open the address it gives you, set a reserved address in your router once it's working. What's below is enough to actually start each one, not just a name and a sentence.</p>
 
 <h4>Immich, family photo backup</h4>
 <div class="box plain"><span class="lbl">What it does</span>Every phone in the house backs up its photos here automatically, in the background, the same everyday behaviour as Google Photos or iCloud, except the actual copies live on your own NAS drive rather than a company's servers.</div>
 <span class="cmd">bash -c "$(curl -fsSL https://raw.githubusercontent.com/community-scripts/ProxmoxVE/main/ct/immich.sh)"</span>
 <p>Defaults: 4 cores, 6GB memory, 20GB disk, reached at <code>&lt;its-ip&gt;:2283</code>. One thing worth knowing before you start it: the very first install compiles several components from scratch, which can take anywhere from about 15 minutes to a couple of hours depending on how busy the machine is, that's normal and not a hang. Once it's up, create an admin account on first visit, then install the Immich app on each family member's phone and point it at that address to start backing up automatically. Its own photo storage lives on the container's small disk by default, so before everyone starts uploading in earnest, this is one worth bind mounting to your NAS drive the same way Jellyfin's media folder was, so photos land on the big drive rather than filling up a 20GB container disk.</p>
-
-<h4>Nextcloud, a shared family drive</h4>
-<div class="box plain"><span class="lbl">What it does</span>A shared space for documents and files the whole family can drop things into and get to from any device, your own version of Google Drive or Dropbox.</div>
-<span class="cmd">bash -c "$(curl -fsSL https://raw.githubusercontent.com/community-scripts/ProxmoxVE/main/ct/nextcloudpi.sh)"</span>
-<p>Defaults: 2 cores, 2GB memory, 8GB disk, reached at <code>https://&lt;its-ip&gt;</code> (it uses HTTPS on port 443 by default, so expect the same self-signed certificate warning you saw with Proxmox itself, safe to click through on your own network). One honest note directly from the project's own documentation: this particular installer pulls its code from outside the main community-scripts repository, so it's worth a quick look at what it's fetching before running it, same "only run things from a source you trust" habit from earlier in this guide. Same as Immich, plan to bind mount your NAS drive in for the actual file storage rather than relying on the small default disk once real use begins.</p>
 
 <h4>Vaultwarden, a shared password manager</h4>
 <div class="box plain"><span class="lbl">What it does</span>One place for the whole family to store logins and passwords securely, using the same free apps as the popular password manager Bitwarden, just pointed at your own server instead of their company's.</div>
@@ -1454,12 +1618,12 @@ This patches the operating system underneath each app, not the app itself. Jelly
 <p>Every one of these follows the same pattern you already know by heart now: a container, a bind mount if it needs to touch shared storage, a reserved address, and its own login. Nothing about how they get added is fundamentally new territory anymore, that's the real payoff of everything covered so far. Pick them off one at a time whenever you fancy, in any order, snapshotting first out of the habit from the last section.</p>
 
 <div class="recap"><span class="lbl">Recap</span>
-<ul><li>Immich, Nextcloud, Vaultwarden, Home Assistant, Uptime Kuma and Proxmox Backup Server are all optional next containers, each doing one clear job.</li>
+<ul><li>Immich, Vaultwarden, Home Assistant, Uptime Kuma and Proxmox Backup Server are all optional next containers, each doing one clear job.</li>
 <li>They all install and run the same way as everything you've already built, so none of them is new territory.</li>
 <li>Proxmox Backup Server only becomes a true off-site backup once it lives on a second, separate machine.</li></ul></div>
 
 <!-- ===================== NEXT ===================== -->
-<h2 id="next"><span class="n">15.</span>Where this points your career (and beyond AZ-900)</h2>
+<h2 id="next"><span class="n">16.</span>Where this points your career (and beyond AZ-900)</h2>
 <p>A build like this is also a way to find out what you enjoy. Here's an honest map of where each thing you touched can lead, so you can follow the bits that light you up.</p>
 <div class="box map"><span class="lbl">What you've actually sampled</span>
 <b>Enjoyed the hypervisor and building containers?</b> That's <b>systems administration / virtualization / cloud infrastructure</b> → after AZ-900, look at <b>AZ-104 (Azure Administrator)</b>.<br>
@@ -1470,7 +1634,7 @@ This patches the operating system underneath each app, not the app itself. Jelly
 <p>A broad, beginner-friendly cert like AZ-900 is a smart first move: it gives you the shared vocabulary and a map of the territory. A home lab like this is the perfect companion, because you keep going "oh, I did that." Do a cert for the words; keep tinkering here for the hands. Having both is exactly the combination that gets you noticed for the next role.</p>
 
 <!-- ===================== GLOSSARY ===================== -->
-<h2 id="glossary"><span class="n">16.</span>Glossary of every term you'll meet</h2>
+<h2 id="glossary"><span class="n">17.</span>Glossary of every term you'll meet</h2>
 <dl class="gloss">
   <dt>Fladder</dt><dd>An alternative app for watching your Jellyfin library, built by a different team. Talks to the same server, no changes needed on Jellyfin's side.</dd>
   <dt>Homepage</dt><dd>A dashboard container that shows every one of your services as a clickable tile, so nobody needs to know an IP address or port to reach anything. Configured entirely through plain text files like <code>services.yaml</code> rather than clicked together in a web page.</dd>
@@ -1484,7 +1648,7 @@ This patches the operating system underneath each app, not the app itself. Jelly
   <dt>Stub file</dt><dd>A small file that stands in for something real. Gelato writes exactly one, called <code>stub.txt</code>, into each of its two folders, purely so Jellyfin has something to find and will scan the folder. The titles themselves are database entries, not files.</dd>
   <dt>Manifest</dt><dd>The single web address AIOStreams produces once configured, which you paste into Gelato so the plugin knows where to pull its catalogue and streams from.</dd>
   <dt>Docker / Docker Compose</dt><dd>Docker runs small, lightweight app packages (container images) inside one Linux container, sharing its resources rather than each getting a full separate one. Docker Compose is a single recipe file (docker-compose.yml) listing every app to run, what to give it access to, and how they connect, applied in one command.</dd>
-  <dt>Immich / Nextcloud / Vaultwarden / Home Assistant / Uptime Kuma / Proxmox Backup Server</dt><dd>Future containers on the roadmap: private photo backup, a shared drive, a shared password manager, smart home control, a dashboard that watches your other containers, and a proper off-site backup system.</dd>
+  <dt>Immich / Vaultwarden / Home Assistant / Uptime Kuma / Proxmox Backup Server</dt><dd>Future containers on the roadmap: private photo backup, a shared password manager, smart home control, a dashboard that watches your other containers, and a proper off-site backup system.</dd>
   <dt>Hypervisor</dt><dd>Software that runs multiple virtual computers on one physical machine. Proxmox is a Type 1 (bare-metal) one.</dd>
   <dt>Virtual machine (VM)</dt><dd>A software "computer" that runs its own full operating system on a hypervisor.</dd>
   <dt>Container / LXC</dt><dd>A lighter isolated environment that shares the host's Linux kernel. Docker and Kubernetes are the industry versions.</dd>
@@ -1506,7 +1670,13 @@ This patches the operating system underneath each app, not the app itself. Jelly
   <dt>IP forwarding</dt><dd>A Linux setting, separate from Tailscale itself, controlling whether a machine is allowed to pass traffic through to other devices rather than only handling traffic meant for itself. Off by default; needs enabling for subnet routing to actually work.</dd>
   <dt>Global Nameserver (Tailscale DNS)</dt><dd>A DNS address that Tailscale hands out to every device in the tailnet, the same role a home router's DHCP normally plays for devices connected to it locally. Needed so devices that are only ever reachable through the tunnel (like a phone away from home) still know to ask Pi-hole for custom domain names instead of falling back to the public internet's DNS.</dd>
   <dt>Client / server</dt><dd>The server provides a service; the client consumes it. The pattern behind most software.</dd>
-  <dt>Transcoding / Quick Sync</dt><dd>Reshaping video on the fly; Quick Sync is Intel hardware that does it efficiently.</dd>
+  <dt>Direct play</dt><dd>The good outcome when you press play: the server hands the video file over exactly as it is and the app on your device decodes it. The server does almost no work, and this is what everything in this guide is arranged to achieve.</dd>
+  <dt>Transcoding</dt><dd>The fallback: the server rebuilds the video into a different format on the fly because the app can't handle the original. Expensive, and the cause of most stuttering and buffering. Usually triggered by a weak app rather than a weak server.</dd>
+  <dt>Quick Sync</dt><dd>A dedicated video-processing circuit built into Intel chips that handles transcoding far more efficiently than the main processor. Worth switching on as a safety net, but it makes the fallback cheaper rather than unnecessary.</dd>
+  <dt>MPV</dt><dd>A playback engine that decodes essentially any video format, including image-based subtitles. Apps built around it (Streamyfin, Findroid, Jellyfin Media Player) direct play almost everything, which is why they're named specifically rather than left to preference.</dd>
+  <dt>Remux</dt><dd>An untouched copy straight from a disc with nothing compressed, often 60GB or more for a single film. Refused deliberately in the AIOStreams size filter, since nothing in a normal house benefits from moving that much data in real time.</dd>
+  <dt>Appliance / template</dt><dd>A complete prebuilt system, operating system and application and configuration all assembled and tested together, saved as a frozen copy you stamp out rather than install. TurnKey Linux publishes about a hundred of them and Proxmox carries the catalogue built in.</dd>
+  <dt>Nextcloud</dt><dd>Your own version of Google Drive or Dropbox: file sync, version history, a recycle bin, share links and per-person accounts. Heavier than a plain Samba share, and doing a genuinely different job.</dd>
   <dt>Snapshot vs backup</dt><dd>A snapshot is an on-disk undo point; a backup is a separate copy elsewhere (see 3-2-1).</dd>
   <dt>Headless</dt><dd>A machine run with no monitor/keyboard, managed remotely over the network.</dd>
   <dt>IaaS</dt><dd>Infrastructure as a Service: renting virtual machines/networks from a cloud. An AZ-900 topic you've now built by hand.</dd>
@@ -1556,7 +1726,7 @@ var META={
  pihole:['build','40 min','reversible'],storage:['build','40 min','warn:formats the drive'],
  jellyfin:['build','30 min','reversible'],remote:['build','50 min','reversible'],
  automate:['build','45 min','needs Jellyfin 10.11+'],dashboard:['build','45 min','reversible'],
- samba:['build','30 min','reversible'],ops:['read','10 min read'],roadmap:['ref','reference'],next:['read','5 min read'],glossary:['ref','reference']
+ samba:['build','30 min','reversible'],nextcloud:['build','40 min','reversible'],ops:['read','10 min read'],roadmap:['ref','reference'],next:['read','5 min read'],glossary:['ref','reference']
 };
 
 /* ---------- build sidebar + meta + anchors ---------- */
