@@ -1243,16 +1243,21 @@ pct start &lt;jellyfin-id&gt;</span>
     <span class="cmd">apt update
 apt install -y rclone fuse3</span>
   </li>
+  <li>Scramble the Decypharr password before you write it anywhere. rclone will not read a password written out in plain text in its configuration file, so turn it into the form it expects, with your own password from Step F inside the quotes:
+    <span class="cmd">rclone obscure 'your_decypharr_password'</span>
+    Keep the single quotes, which stop the shell from interpreting any punctuation in the password. It prints one line of jumbled characters. That line is what goes in the file in the next step.
+    <div class="safe"><b>This is not encryption, and it is worth knowing the difference.</b> Anyone holding that file can run <code>rclone reveal</code> on the string and get the password straight back. It exists so a password is not sitting in plain sight in a file you might screenshot or paste somewhere. Carry on treating the file itself as the secret. Skipping this step does not weaken anything, it simply fails, with a message about not being able to decrypt the password.</div>
+  </li>
   <li>Tell rclone where the shelf is. Create its configuration file:
     <span class="cmd">mkdir -p /root/.config/rclone
 nano /root/.config/rclone/rclone.conf</span>
-    Paste this in, replacing the address with your Docker container's own, and the login with the one you created in Step F:
+    Paste this in, replacing the address with your Docker container's own, the username with the one you created in Step F, and the password with the jumbled line from the previous step:
     <span class="cmd">[decypharr]
 type = webdav
 url = http://192.168.1.200:8282/webdav
 vendor = other
 user = your_decypharr_username
-pass = your_decypharr_password</span>
+pass = the_jumbled_line_from_the_previous_step</span>
     <div class="why"><b>What this file is:</b> a named list of places rclone knows how to reach. <code>[decypharr]</code> is just a label you chose, used in the next step to refer to everything below it. Nothing here is specific to media; rclone speaks to dozens of kinds of storage this same way.</div>
   </li>
   <li>Create a service that mounts it at boot, the same pattern as the one in Step B:
@@ -1285,7 +1290,7 @@ WantedBy=multi-user.target</span>
 mkdir -p /mnt/decypharr
 systemctl enable --now decypharr-mount.service
 ls /mnt/decypharr</span>
-    <div class="see">You'll see: the same <code>__all__</code> folder you saw from inside the Docker container. That is the proof the two machines are now looking at one shelf. If it is empty or errors, <code>systemctl status decypharr-mount</code> prints the reason, and a wrong address or a mistyped password in the config file accounts for most of them.</div>
+    <div class="see">You'll see: the same <code>__all__</code> folder you saw from inside the Docker container. That is the proof the two machines are now looking at one shelf. If it is empty or errors, <code>systemctl status decypharr-mount --no-pager -l</code> prints the reason, and a wrong address or a mistyped password in the config file accounts for most of them. Failures here fall into three groups worth telling apart: it cannot reach the address at all, it reaches it but is refused the login, or it manages both and something local stops it presenting the folder. The message names which.</div>
   </li>
 </ol>
 
