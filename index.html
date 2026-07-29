@@ -1224,6 +1224,11 @@ Decypharr starts as root, then deliberately drops down to user <b>1000</b> befor
 <span class="cmd">ls /mnt/decypharr</span>
 <div class="see">You'll see: a small set of folders including <code>__all__</code>, which is the one everything else points into. An empty listing is expected at this stage since you have not asked for anything yet, but the folder itself must exist. "No such file or directory" means the mount did not come up, and <code>docker logs decypharr</code> will say why. A line reading <code>failed to access mountpoint</code> means the empty folder from Step E was never made, and <code>user has no write access to mountpoint</code> means it was made but not handed to user 1000. Both are fixed by redoing that pair of commands in Step E, then <code>docker restart decypharr</code>. Anything else mentioning fuse points back at the tickbox from Step B instead.</div>
 
+<p>Now check that the shelf is also reaching the two apps that have to read it, which is the <code>rslave</code> half of the arrangement doing its job:</p>
+<span class="cmd">docker exec sonarr ls /mnt/decypharr
+docker exec radarr ls /mnt/decypharr</span>
+<div class="see">You'll see: the same set of folders both times. If Decypharr shows them but these two come back empty, the mount is real but is not travelling outward, which means the <code>rshared</code> and <code>rslave</code> lines in the compose file are not both present as written. Worth catching here rather than in Step J, where it would look like Sonarr failing to import.</div>
+
 <h3>Step G, give Jellyfin its own window onto the same shelf</h3>
 <p>Sonarr is about to fill <code>/media/tv</code> with signposts pointing at <code>/mnt/decypharr</code>. Jellyfin can already see <code>/media/tv</code>, but <code>/mnt/decypharr</code> only exists inside the Docker container, and Jellyfin lives in a different container, so every signpost would lead nowhere. Give Jellyfin its own view of the same shelf, at the same name.</p>
 <div class="box learn"><span class="lbl">Understand this: why the path has to match, and how the second view is made</span>
