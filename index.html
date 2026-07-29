@@ -1053,7 +1053,9 @@ findmnt -o TARGET,PROPAGATION /mnt</span>
 <span class="cmd">mkdir -p /mnt/media/anime
 mkdir -p /mnt/media/tv
 mkdir -p /mnt/media/movies
-mkdir -p /mnt/media/symlinks</span>
+mkdir -p /mnt/media/symlinks/sonarr
+mkdir -p /mnt/media/symlinks/radarr</span>
+<div class="why"><b>Why <code>symlinks</code> gets two folders inside it:</b> Decypharr does not pile everything into one place. It files each job under the name of whoever asked for it, so Sonarr's work lands in <code>symlinks/sonarr</code> and Radarr's in <code>symlinks/radarr</code>. It would create these itself on first use, but each app checks for its own folder as soon as it is connected, well before anything has been through, and reports a health warning when it is missing. Making them now saves a confusing warning about a folder that was always going to appear later.</div>
 <div class="box safe"><span class="lbl">Run these on the host, and note that the wrong machine will not tell you</span>
 <code>/mnt/media</code> also works inside the Docker container, where <code>/mnt</code> is an empty folder on the container's own disk. You get four folders on the wrong drive, no error, and no sign of it until Sonarr cannot find its root folders. The prompt settles it: <code>root@nas01</code> is the host, <code>root@docker</code> is the container.</div>
 
