@@ -1039,7 +1039,7 @@ findmnt -o TARGET,PROPAGATION /mnt</span>
 </ol>
 
 <h3>Step C, folders, and handing them to the right owner</h3>
-<p>Decide where organised content will live, as subfolders of your existing media mount, run from the <b>Proxmox host</b>. This adds one new folder to the anime, television and films split, <code>symlinks</code>, which is the landing area where Decypharr puts its signposts before Sonarr and Radarr file them properly:</p>
+<p>Decide where organised content will live, as subfolders of your existing media mount, run from the <b>Proxmox host</b>. These are new folders sitting alongside the <code>films</code> folder from the storage section rather than replacing it, and the reason for keeping those two apart is covered in Step H. The last one, <code>symlinks</code>, is the landing area where Decypharr puts its signposts before Sonarr and Radarr file them properly:</p>
 <span class="cmd">mkdir -p /mnt/media/anime
 mkdir -p /mnt/media/tv
 mkdir -p /mnt/media/movies
@@ -1287,6 +1287,11 @@ ls /mnt/decypharr</span>
 
 <div class="box why"><span class="lbl">Matching this in Jellyfin</span>
 Worth setting up three separate libraries in Jellyfin too, rather than one covering everything: Anime, TV Shows and Movies, each pointed at its matching folder and each set to the correct content type when you create it. This is what gives anime its own clean row on the home screen instead of being buried alphabetically among everything else, and it helps Jellyfin fetch the right kind of artwork and episode information for each.</div>
+
+<div class="box safe"><span class="lbl">Keep the things you own out of these folders</span>
+You already have <code>/media/films</code> from the storage section, holding whatever you ripped or bought yourself. Leave it exactly where it is and do <b>not</b> make it one of Radarr's root folders, tempting though it looks. A root folder is not somewhere Radarr merely reads. It is somewhere Radarr considers itself in charge of, and it will happily rename, reorganise or replace what it finds there when it decides it has found a better copy. For a rented signpost that is exactly the behaviour you want. For the only copy of something you own, it is not.
+<br><br>That leaves an obvious annoyance, which is two separate film folders and seemingly two separate rows on the home screen. There is a neat way out of it: a Jellyfin library can point at <b>more than one folder</b>. So rather than creating a second library, open your existing Movies library in Jellyfin, and add <code>/media/movies</code> alongside <code>/media/films</code> as a second folder within it. Jellyfin merges the two into one list, the family sees a single collection, and Radarr still only has authority over the half it is supposed to.
+<br><br>The same applies to anything you own in television form. Keep it outside <code>/media/tv</code> and <code>/media/anime</code>, and add its folder to the matching library the same way.</div>
 
 <p>Now connect Decypharr as the download client both organisers hand their jobs to. In <b>both</b> Sonarr's and Radarr's Settings, under <b>Download Clients</b>, click the plus and choose <b>qBittorrent</b> from the list. Fill it in like this:</p>
 <ul>
