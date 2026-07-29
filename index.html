@@ -1183,6 +1183,10 @@ It is a fair question why FlareSolverr goes in now when the advice elsewhere in 
 <br><br>FlareSolverr sits <b>beside</b> the path rather than <b>in</b> it. Nothing routes through it unless you tag a site to use it, so running it and never needing it costs you one idle container. Something that sits <b>in</b> the path is different: it changes every request whether you wanted it to or not, and becomes a second suspect the day anything goes wrong.
 <br><br>So the rule is not "never add things early." It is: <b>add things that are inert until invited, hold off on things that sit in the traffic's way.</b> That distinction is worth carrying well beyond this project.</div>
 
+<p>One thing left before anything starts. Decypharr's shelf is going to appear at <code>/mnt/decypharr</code>, and a mount can only appear somewhere a folder already exists: the empty folder is the peg the mount hangs on, and Linux will not invent a peg for you. Create it now, inside the Docker container:</p>
+<span class="cmd">mkdir -p /mnt/decypharr</span>
+<div class="why"><b>Why this is not in the compose file:</b> the folder has to exist on the Docker container's own disk, not inside Decypharr's image, because <code>/mnt</code> is the folder being shared outward to Sonarr and Radarr. It stays empty until Step F, when Decypharr takes it over.</div>
+
 <p>Bring the whole stack up with one command, run from <code>/opt/arrstack</code>:</p>
 <span class="cmd">docker compose up -d</span>
 <div class="see">You'll see: Docker pulling each image the first time, which can take a few minutes, then <code>docker ps</code> listing all six containers as running. If one is missing, <code>docker compose logs decypharr</code>, or whichever name is absent, prints what that app said as it tried to start. A mistyped line or a misaligned indent accounts for nearly every first attempt.</div>
@@ -1214,7 +1218,7 @@ It is a fair question why FlareSolverr goes in now when the advice elsewhere in 
 </ol>
 <p>Check the shopfront is actually open, run inside the Docker container:</p>
 <span class="cmd">ls /mnt/decypharr</span>
-<div class="see">You'll see: a small set of folders including <code>__all__</code>, which is the one everything else points into. An empty listing is expected at this stage since you have not asked for anything yet, but the folder itself must exist. "No such file or directory" means the mount did not come up, and <code>docker logs decypharr</code> will say why, with the FUSE tickbox from Step B being the usual culprit.</div>
+<div class="see">You'll see: a small set of folders including <code>__all__</code>, which is the one everything else points into. An empty listing is expected at this stage since you have not asked for anything yet, but the folder itself must exist. "No such file or directory" means the mount did not come up, and <code>docker logs decypharr</code> will say why. A line reading <code>failed to access mountpoint</code> means the empty folder from Step E was never made, so make it and run <code>docker restart decypharr</code>. Anything mentioning fuse or permissions points back at the tickbox from Step B instead.</div>
 
 <h3>Step G, give Jellyfin its own window onto the same shelf</h3>
 <p>Sonarr is about to fill <code>/media/tv</code> with signposts pointing at <code>/mnt/decypharr</code>. Jellyfin can already see <code>/media/tv</code>, but <code>/mnt/decypharr</code> only exists inside the Docker container, and Jellyfin lives in a different container, so every signpost would lead nowhere. Give Jellyfin its own view of the same shelf, at the same name.</p>
