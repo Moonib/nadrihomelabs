@@ -1351,7 +1351,18 @@ Sonarr prefills this box with something like <code>tv-sonarr</code>, because aga
 <div class="why"><b>Why the same details go in twice, in opposite directions:</b> these are two separate conversations, not one. Sonarr needs to know where to send jobs, which is the download client entry. Decypharr needs to know where to send finished work and, more usefully, to be able to look through Sonarr's library later and check that every signpost still points at something real. Each side has to be introduced to the other.</div>
 
 <h3>Step I, Prowlarr and the search sites</h3>
-<p>Open Prowlarr's own address, port <code>9696</code>, and under <b>Settings</b>, then <b>Apps</b>, add both Sonarr and Radarr. You can use their names here too, <code>sonarr</code> on port <code>8989</code> and <code>radarr</code> on port <code>7878</code>, along with each one's API key from its own Settings. This is what lets Prowlarr push its list of search sites down into both organisers automatically, rather than you configuring the same list twice.</p>
+<p>Open Prowlarr's own address, port <code>9696</code>. Before anything else, go to <b>Settings</b>, then <b>Apps</b>, and add both Sonarr and Radarr. Do not skip past this: it is the step that makes the rest of the section do anything, because it is what lets Prowlarr push its list of search sites down into both organisers automatically rather than you configuring the same list twice. On each entry:</p>
+<ul>
+<li><b>Prowlarr Server:</b> <code>http://prowlarr:9696</code></li>
+<li><b>Sonarr Server</b> or <b>Radarr Server:</b> <code>http://sonarr:8989</code> or <code>http://radarr:7878</code></li>
+<li><b>API Key:</b> that app's own key, from its <b>Settings</b>, then <b>General</b></li>
+<li><b>Sync Level:</b> <b>Full Sync</b></li>
+</ul>
+<div class="box safe"><span class="lbl">Two fields that test green while doing nothing</span>
+<b>Sync Level</b> set to anything other than Full Sync means Prowlarr connects perfectly, reports success, and never sends a single search site. Nothing anywhere reports an error.
+<br><br><b>Prowlarr Server</b> is not where you are; it is the address Sonarr will use to call <i>back</i> to Prowlarr every time it searches. Put your browser's address or <code>localhost</code> there and the search sites arrive looking correct and return nothing when used. Use the container name, the same way the other apps address each other.</div>
+<p>Once both are saved, open Prowlarr's <b>Indexers</b> page and click <b>Sync App Indexers</b> to push immediately rather than waiting for the next scheduled run. Then check <b>Settings</b>, then <b>Indexers</b> in Sonarr.</p>
+<div class="see">You'll see: your search sites listed there, filled in by Prowlarr rather than by you. Until they appear, Sonarr's <b>System</b> page carries a health warning reading "No indexers available with Automatic Search enabled", and anything requested sits in Jellyseerr saying <b>Requested</b> forever without ever erroring, because there is nowhere to search and therefore nothing to report.</div>
 <div class="box safe"><span class="lbl">One list, and only one</span>
 Sonarr and Radarr each have an Indexers page of their own. Leave both alone. They are a leftover from before Prowlarr existed, and Prowlarr fills them in for you once the apps are connected, so anything added there by hand is duplicated or overwritten on the next sync.
 <br><br>There is also no need to keep anime, television and film lists apart. Every search site declares which categories it covers, so Sonarr's searches only ever reach the television and anime categories and Radarr's only reach film. An anime-only site simply never gets asked about films. Marking a show as Anime back in Step H does a second job here, telling Sonarr to search the anime category for it.</div>
