@@ -1333,8 +1333,12 @@ You already have <code>/media/films</code> from the storage section, holding wha
 <li><b>Port:</b> <code>8282</code></li>
 <li><b>Username:</b> the address of the app you are currently in, so <code>http://sonarr:8989</code> in Sonarr and <code>http://radarr:7878</code> in Radarr</li>
 <li><b>Password:</b> that same app's own API key, found under its <b>Settings</b>, then <b>General</b></li>
-<li><b>Category:</b> <code>sonarr</code> in Sonarr, <code>radarr</code> in Radarr</li>
+<li><b>Category:</b> <code>sonarr</code> in Sonarr, <code>radarr</code> in Radarr, replacing whatever the box prefills</li>
 </ul>
+<div class="box safe"><span class="lbl">The category is an address, not a label</span>
+Sonarr prefills this box with something like <code>tv-sonarr</code>, because against a real qBittorrent a category is only a way of grouping downloads together. Here it does a different job, so type over it.
+<br><br>Decypharr handles requests from both organisers through the same door, and when something finishes it has to know which of the two to tell. It works that out by matching the category on the job against the <b>name</b> of the entry in its own Arrs list, which you fill in at the end of this step. So the two must match exactly: lower case, no prefix, no trailing space.
+<br><br>Get it wrong and nothing announces it. Sonarr sends the job, Decypharr accepts it and fetches the thing perfectly well, then has nobody to hand it back to. The symptom is a queue that fills up and never completes, with no error anywhere saying why.</div>
 <div class="why"><b>Why you pick qBittorrent when there is no qBittorrent:</b> Sonarr has a fixed list of download programs it knows how to talk to, and Decypharr is not on it, so Decypharr speaks the language of the most common one instead. Sonarr believes it is talking to qBittorrent and everything works, because the conversation is identical.</div>
 <div class="why"><b>Why the username and password fields hold such strange values:</b> because Decypharr is not really a download client, it needs something a real one would never need, which is a way to talk <i>back</i> to the app that gave it the job. It borrows these two fields to collect that. So the username is where Sonarr lives and the password is the key that gets in, and Decypharr uses them to tell Sonarr the moment something is ready rather than making Sonarr keep asking. It looks wrong and it is deliberate.</div>
 <div class="why"><b>Why the host is <code>decypharr</code> and not an address:</b> everything in this stack was started from the same compose file, so Docker lets these apps find each other by the names in that file. No IP addresses are needed between them, and none of them break if the Docker container's own address ever changes.</div>
@@ -1342,7 +1346,7 @@ You already have <code>/media/films</code> from the storage section, holding wha
 
 <p>One nice connecting step: in Jellyfin's Dashboard, under <b>API Keys</b>, generate a new key. Then in both Sonarr's and Radarr's Settings, under <b>Connect</b>, add a connection of type Jellyfin or Emby using your Jellyfin server's address and that key. This means Jellyfin refreshes its library the moment either one files something, rather than waiting for its next scheduled scan.</p>
 
-<p>Finally, go back to Decypharr's page, into <b>Settings</b> then <b>Arrs</b>, and add both. For each one, the host is <code>http://sonarr:8989</code> or <code>http://radarr:7878</code> and the token is that app's API key, the same two values you just typed into the download client screens.</p>
+<p>Finally, go back to Decypharr's page, into <b>Settings</b> then <b>Arrs</b>, and add both. Name them <code>sonarr</code> and <code>radarr</code>, matching the categories above exactly. The host is <code>http://sonarr:8989</code> or <code>http://radarr:7878</code> and the token is that app's API key, the same two values you just typed into the download client screens.</p>
 <div class="why"><b>Why the same details go in twice, in opposite directions:</b> these are two separate conversations, not one. Sonarr needs to know where to send jobs, which is the download client entry. Decypharr needs to know where to send finished work and, more usefully, to be able to look through Sonarr's library later and check that every signpost still points at something real. Each side has to be introduced to the other.</div>
 
 <h3>Step I, Prowlarr and the search sites</h3>
