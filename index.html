@@ -661,7 +661,7 @@ Jellyfin already has its own apps and its own web page. Fladder is simply a diff
 <p>Your SSD runs the system; this new hard drive holds files. Jellyfin exists now but has nowhere to look, so this section prepares the drive, attaches it into Linux, and opens a controlled doorway from the host into the container you just built. Four jobs in order: make the drive usable, mount it, share it in, then point Jellyfin at it.</p>
 
 <div class="box plain"><span class="lbl">What actually ends up on this drive</span>
-Worth setting expectations, because it changes what size you need. Later in this guide your film and series library is <b>streamed on demand</b> rather than downloaded, so the library itself takes up almost nothing: a few kilobytes per title. This drive is for the things that do live on your machine, which is anything you own or rip yourself, your Jellyfin metadata and artwork, container backups, and the record the streaming setup keeps of what it can offer, which is a database entry per title rather than a file. You still want a proper drive and you still need every skill in this section, but you are not filling eight terabytes with films, and you should not buy on that assumption.</div>
+Worth setting expectations, because it changes what size you need. Later in this guide your film and series library is <b>rented rather than owned</b>: the video files themselves sit on an outside company's servers, and what lands in your library folders is a signpost pointing at them, a few hundred bytes each. So the library itself takes up almost nothing. This drive is for the things that genuinely do live on your machine, which is anything you own or rip yourself, your Jellyfin metadata and artwork, container backups, and later on your photos. You still want a proper drive and you still need every skill in this section, but you are not filling eight terabytes with films, and you should not buy on that assumption.</div>
 
 <div class="box learn"><span class="lbl">Understand this: SSD for the system, hard drive for the data</span>
 Two jobs, two kinds of drive. Your <b>SSD</b> is fast but small: ideal for the operating system and apps that do constant small reads and writes. Your <b>NAS hard drive</b> is big and cheap per terabyte: ideal for bulk media that's read in long steady streams and doesn't need speed. Splitting "fast small disk for the system" from "big cheap disk for the data" is a standard design you'll see everywhere, including cloud VMs, which pair a small <b>OS disk</b> with larger attached <b>data disks</b> for exactly this reason.</div>
@@ -931,283 +931,422 @@ This one section covers <b>NAT</b>, <b>firewalls</b>, <b>public/private IPs</b>,
 <p class="a">CIDR notation for a block of 256 addresses (192.168.1.0–.255), where the first 24 bits are the fixed network portion.</p></div>
 
 <!-- ===================== AUTOMATE ===================== -->
-<h2 id="automate"><span class="n">10.</span>Filling your library on its own: Gelato, a streaming engine, and no downloads</h2>
-<p>Up to now, getting a new film or show into Jellyfin has meant finding it, downloading the whole file, and storing it on your own disk. This section takes a completely different route to a library that keeps itself current: instead of downloading and keeping anything, your server lists every title you could want, thousands of them, and only pulls the actual video from a fast streaming source at the moment someone presses play. The payoff is an enormous library that fills itself with no downloading, no waiting overnight, and no half finished files, in exchange for leaning on an outside service to do the heavy lifting. That trade is a real one, so it is spelled out plainly below before anything gets set up.</p>
+<h2 id="automate"><span class="n">10.</span>Filling your library on its own: Sonarr, Radarr, Prowlarr, Jellyseerr and a rented warehouse</h2>
+<p>Up to now, getting a new film or show into Jellyfin has meant finding it yourself and copying the file across by hand. This section removes that chore properly. One new container hosts a small set of programs that between them take a request, go and find the thing, fetch it, rename it sensibly and file it where Jellyfin is already looking, with a request page the rest of the household can use without ever seeing any of the machinery. This is what turns the build from "a media player I feed manually" into "a library that keeps itself current."</p>
 
-<div class="box learn"><span class="lbl">Understand this: warehouse versus shop window</span>
-The old download approach is a <b>warehouse</b>. Every title physically arrives and sits on your shelves, yours forever, playing even with the internet down, but slow to fill and hungry for disk space. This new approach is a <b>shop window</b>. Your library shows a card for every title, thousands of them, but nothing is actually in the back room until someone asks, at which point it is fetched and played in seconds. Those cards are not files. Each one is a row written straight into Jellyfin's own catalogue, the same database that already tracks everything you own, marked as a title whose video lives elsewhere. Almost nothing lands on your disk at all. Because nothing is stored, nothing stalls the way that Rick and Morty download did, but the shop only works while its supplier is open.</div>
+<div class="box learn"><span class="lbl">Understand this: the library that holds no books</span>
+Picture a small library branch with a proper catalogue and proper labelled shelves, except that no book is physically there. Each shelf holds a card saying "this one lives in the big central store, they will send it over the moment somebody asks." The catalogue is real, the organising is real, the labels are real, and the shelves take up almost no space at all.
+<br><br>That is what you are building. Your server does all the deciding, naming and filing, so Jellyfin sees a tidy, correctly organised library. But the video itself never lands on your disk. It sits in a big central store that you pay a few pounds a month for, and it is handed over the moment somebody presses play. Everything in this section is either the catalogue, the shelving, or the arrangement with the central store.</div>
 
-<div class="box learn"><span class="lbl">Understand this: the three pieces that make it work</span>
-Three parts do this between them, each with one clear job. A <b>debrid service</b> (this build uses <b>TorBox</b>) is the engine: a company that keeps a huge pile of already fetched content sitting on fast servers and hands it to you over an ordinary web connection, which is exactly why playback is instant and there is no seeding or stalling to babysit. <b>AIOStreams</b> is the adapter: it gathers dozens of separate streaming sources, tidies and de-duplicates them, and hands your server one clean feed instead of a mess of eighty. <b>Gelato</b> is the Jellyfin plugin that ties it together: it writes the cards into your library catalogue, and when someone hits play it asks AIOStreams for a stream, gets one served from your debrid engine, and pipes it through Jellyfin to the screen. Three small pieces stand in for the whole six app download stack this guide used to describe.</div>
+<div class="box learn"><span class="lbl">Understand this: the five pieces and the one job each does</span>
+Five programs work together, each with one clear job, so it is worth knowing what each one is before any of them get installed.
+<br><br><b>Prowlarr</b> is the search desk. It is the single place where you list which search sites the whole setup is allowed to use, so you configure that list once in Prowlarr rather than separately inside every other app.
+<br><br><b>Sonarr</b> and <b>Radarr</b> are the organisers, one for television and one for films. They hold the list of what you want, ask the search desk for it on a schedule, pick a result, and once it arrives they give it a sensible name and file it in the right folder. Neither one can search anywhere by itself and neither one fetches anything itself.
+<br><br><b>TorBox</b> is the central store. It is a paid service, running on somebody else's fast machines, that goes and gets things on your behalf and keeps an enormous pile of already-fetched content ready to hand over.
+<br><br><b>Decypharr</b> is the piece that joins those two worlds, and it is the only genuinely unfamiliar name here. Sonarr and Radarr only know how to talk to a program that downloads things onto a disk, because that is the only kind of thing that existed when they were written. Decypharr pretends to be exactly that kind of program so they will talk to it, then quietly forwards every job to TorBox instead, and makes whatever comes back appear as an ordinary folder on your own server. To Sonarr it looks like a download client. To you it looks like a folder. Neither of those is quite true, and that is the entire trick.
+<br><br><b>Jellyseerr</b> is the request counter at the front. Anyone in the family opens one page, searches for something the way they would on any streaming app, and clicks Request. It passes that to Sonarr or Radarr and the rest happens on its own.</div>
+
+<div class="box learn"><span class="lbl">Understand this: nothing here downloads anything, which is why there is no VPN in it</span>
+This is worth understanding properly, because it is the reason this section is shorter and simpler than the equivalent setup people usually describe.
+<br><br>The traditional way of fetching this kind of content is <b>peer to peer</b>. There is no single server holding the file. Instead it is scattered across the machines of everyone who already has it, and your machine opens connections to hundreds of those strangers at once, collecting the file a piece at a time from whoever happens to be online. To be a fair participant, your machine also hands pieces back out to other strangers while it does so. Two things follow from that. Your home address is visible to every one of those machines, which is why that setup is always wrapped in a VPN. And if nobody happens to be sharing a particular file, you sit there getting nothing, forever, with no error to explain it.
+<br><br>Nothing in this build does any of that. TorBox makes those connections, on its own machines, in its own building. Your server only ever makes one ordinary web request to one company, exactly like loading a web page. So the VPN container, the kill switch, the virtual network device it needed, and the VPN subscription itself all disappear from this build, because the thing they existed to hide is no longer happening on your machine. The forever-waiting problem disappears with them, because TorBox does the waiting for you and simply hands the file over when it is ready.
+<br><br>One honest exception, so it does not surprise you later. Prowlarr still visits search sites directly from your own connection, because that part is just asking a website a question. That is ordinary web traffic of exactly the same kind as opening the site in a browser tab yourself. If your internet provider happens to block one of those sites you will notice at that point, and that is a separate problem with its own separate answers.</div>
+
+<div class="box learn"><span class="lbl">Understand this: a symlink, which is the idea the whole thing rests on</span>
+When Sonarr finishes with an episode and files it into your television folder, it does not put a video file there. It puts a <b>symlink</b>, which is a tiny file whose entire content is the address of a different file somewhere else. It is the shelf card from the analogy above: a few hundred bytes saying "the real thing is over there." Anything that opens it, Jellyfin included, gets handed the real file without ever knowing it asked for a signpost.
+<br><br>That is what lets an eight terabyte library sit in a few megabytes. It also carries one condition that will explain a later step: whatever follows the signpost has to actually be able to reach the place it points at. A card reading "shelf 12" is useless in a building with no shelf 12. Your Jellyfin container and your new container are two different machines as far as Linux is concerned, so both of them need to be able to see the same shelf, and each gets its own window onto it further down.</div>
 
 <div class="box safe"><span class="lbl">The honest trade off, before you commit</span>
-This route <b>rents</b> rather than owns. The day the TorBox subscription lapses, or the source your feed points at goes down, your library becomes thousands of placeholder cards with nothing behind them, and there is no local copy to fall back on. The download route was slow and fiddly, but what it produced sat on your own disk and worked forever with no account attached to it. TorBox is a few dollars a month, so this is not an expensive habit, but it is a running one. Neither route is wrong; this build deliberately picks convenience and a library that fills itself, and keeps open the option of pinning a small handful of true favourites to real disk later so they survive an outage.</div>
-
-<div class="box why"><span class="lbl">Check this first: your Jellyfin version</span>
-Gelato needs <b>Jellyfin 10.11 or newer</b> to install at all. Before anything else, open Jellyfin, go to <b>Dashboard, then About</b>, and read the version number. If it is 10.11 or higher you are ready. If it is older, updating Jellyfin is the first job, and worth a snapshot of its container first out of the habit from the ops section. This one check decides everything downstream, so it comes before any account is created or any container is touched.</div>
+This setup <b>rents</b> rather than owns. Your catalogue, your naming and your folder structure are genuinely yours and sit on your disk, but the video does not. The day the TorBox subscription lapses, every one of those shelf cards points at a building you no longer have a key to, and nothing plays. The fully-owned alternative, where every file is fetched onto your own drive and stays there forever, is slower, needs a VPN, needs a lot of disk, and stalls indefinitely on anything unpopular, but what it produces works with no account attached to it and no monthly bill.
+<br><br>Neither is wrong, and this build deliberately picks the rented version because it is dramatically less trouble for a household. It is also not all or nothing: Decypharr can be told to genuinely copy a particular thing onto your own disk rather than leaving a signpost, so a small shelf of real favourites that survive an outage is available whenever you want it.</div>
 
 <h3>Where each piece actually lives</h3>
-<div class="box learn"><span class="lbl">Understand this: only one of the three runs on your server</span>
-It is worth being clear about where each piece sits, because it is less work than the old stack, not more. <b>TorBox</b> is simply an account on someone else's servers, so there is nothing to install for it at all. <b>Gelato</b> installs inside Jellyfin itself, as a <b>plugin</b>, from Jellyfin's own Dashboard, so it needs no container of its own either. The only piece that runs on your own machine is <b>AIOStreams</b>, and it runs as a <b>Docker</b> container. Docker is a second layer of containers that lives <i>inside</i> one of your Proxmox containers: rather than giving every small app its own full Proxmox container, you build one Linux container, install Docker in it, and then run app after app inside that as self contained packages called <b>container images</b>, each described in a single plain text recipe file. That means one Proxmox container built once, and every future app after this one is a few lines of text in the same file.</div>
+<div class="box learn"><span class="lbl">Understand this: why these five don't each get their own Proxmox container</span>
+Every container so far, Pi-hole and Jellyfin and the rest, has been its own separate Proxmox <b>LXC container</b>, a full self-contained mini install of Linux with its own login, its own file system, its own everything. That is a good fit for a handful of big standalone services, but it gets heavy for a cluster of small programs that are meant to be wired together and talk to each other constantly.
+<br><br><b>Docker</b> solves that differently. Instead of five full mini-Linux installs, one single LXC container runs a program called Docker, and Docker in turn runs each of these apps as its own lightweight self-contained package, called a <b>container image</b> in Docker's own vocabulary. That is a different and smaller use of the word "container" than the Proxmox kind, and the two are worth not confusing. All five sit inside that one Docker LXC, share its resources efficiently, and can be told to find each other by name.
+<br><br>TorBox is the exception, since it is simply an account on somebody else's servers. There is nothing to install for it at all.</div>
 
-<h3>Step A, confirm your Jellyfin version</h3>
-<ol class="steps">
-  <li>Open Jellyfin in a browser, click the <b>gear icon</b> in the top right to reach the <b>Dashboard</b>, then choose <b>About</b> in the left menu. Read the version number at the top.
-    <div class="see">You'll see: a version like <code>10.11.x</code>. Anything 10.11 or higher is ready. If it is lower, Gelato will not appear as installable at all later, so update Jellyfin before going any further, and take a snapshot of its container first out of the habit from the ops section.</div>
-  </li>
-</ol>
+<div class="box learn"><span class="lbl">Understand this: Docker Compose, one recipe file for the whole stack</span>
+Rather than clicking through a separate install for each app, Docker is normally driven from one plain text file, a <b>docker-compose.yml</b>, that lists every app you want running, which image to use for each, which folders it should be able to see, and which network ports it needs. Run one command against that file and Docker reads the whole list and builds, starts and connects everything it describes in one go. Change the file later and re-run the same command to bring the whole stack into line with it. That one file becomes the actual master record of your entire media setup from here on.</div>
 
-<h3>Step B, get your TorBox API token</h3>
-<ol class="steps">
-  <li>Create an account at <code>torbox.app</code> and pick a plan. This is the paid engine that makes playback instant, and it is the only thing in this section that costs money.</li>
-  <li>Once signed in, open <b>Settings</b>, find the <b>API</b> section, and copy the <b>API token</b>. Paste it straight into your notes file.
-    <div class="why"><b>Treat this one as a secret, not as config:</b> the token is not a password you type at a login box, it is a key that grants full access to a paid account to whoever holds it. It goes into your notes file, and from there it is pasted directly into the one screen that needs it. Not into a chat window, not into a screenshot, not into a message to someone helping you. If it ever does leak, TorBox lets you regenerate it on that same page, which instantly invalidates the old one; that is the right move and it costs you nothing but re-pasting it.</div>
-  </li>
-</ol>
-
-<h3>Step C, build the container that Docker runs in</h3>
-<p>From the Proxmox host Shell, the same place every other container was created:</p>
+<h3>Step A, build the Docker container</h3>
+<p>Create the Docker host itself as its own LXC, the same community-scripts pattern as everything else, run from the Proxmox host:</p>
 <span class="cmd">bash -c "$(curl -fsSL https://raw.githubusercontent.com/community-scripts/ProxmoxVE/main/ct/docker.sh)"</span>
+<div class="why"><b>Why this script specifically, and leave it unprivileged:</b> this particular installer builds a Debian container with <b>nesting</b> already switched on for you, meaning the container is allowed to run its own containers inside itself, which is exactly what Docker needs and is not on by default. It also sets Docker and Docker Compose up ready to use. It builds the container as <b>unprivileged</b>, the more locked-down and sensible option, and it is best left that way. The permissions mismatch this container hits when reaching into your media folder is handled a different way below, by giving that folder the correctly shifted owner an unprivileged container actually operates as, rather than by making the whole container privileged.</div>
+
+<div class="box learn"><span class="lbl">Understand this: two questions the script asks while it runs</span>
+As this installer works it pauses to ask you a couple of things. The first is <b>"Would you like to add Portainer (UI)?"</b>. Portainer is a control panel for Docker: a web page, reached at the Docker container's address on port <code>9000</code>, showing every container running, whether each is healthy, and letting you read a container's logs or stop and start it with a click rather than only ever typing commands to learn any of that. It is genuinely worth saying <b>yes</b> to while you are learning, since it turns the whole stack from a black box into something you can watch. One thing to hold onto so it does not confuse you later: even with Portainer installed, you still build and update this stack from the <code>docker-compose.yml</code> file described below. Portainer is a window for watching and poking, not a replacement for that recipe file.
+<div class="safe" style="margin-top:8px"><b>If Portainer asks for a "Setup token" when you open it:</b> the first time you visit it, Portainer gives you a short window of about five minutes to create the admin account freely. If you take longer than that it gets cautious and asks for a one-time token printed into its own logs, proving you actually have access to the server rather than just stumbling onto the login page. Grab it by printing Portainer's logs, run from the Proxmox host, swapping in your Docker container's ID:
+<span class="cmd">pct exec &lt;docker-id&gt; -- docker logs portainer 2>&amp;1 | grep -i token</span>
+Paste the token it prints into the field, and finish creating your admin account.</div>
+<div class="safe" style="margin-top:8px"><b>The second question is the important one to get right:</b> <b>"Expose Docker TCP socket (insecure)?"</b>, offering <code>n</code> (No), <code>l</code> (Local only) or <code>a</code> (All interfaces). Answer <b>n</b>. Normally Docker is controlled through a private hatch that exists only as a file inside the machine, so only things already on that machine can command it. This question asks whether to instead open a control door out onto the network, and that door has no password on it by default, while commanding Docker is effectively the same as being the all-powerful root user on the whole host, which is exactly why the prompt itself calls it insecure. Nothing in this setup needs it: Portainer reaches Docker through that private internal file, not over the network, so leaving it off changes nothing about how anything works. This is the guide's <b>least privilege</b> principle in action, declining an exposure you have no use for.</div></div>
+
+<p>Two of the defaults this script offers are worth changing before you go further, the memory and the disk. Both can be adjusted from the Proxmox host after the container is built, so there is no need to get them perfect during setup.</p>
+<div class="box safe"><span class="lbl">Give it a bit more memory</span>
+The default this script hands out, around 2GB, will technically run the stack, but it is tight enough that Sonarr and Radarr can get starved during a library scan. Bumping it to 4GB is comfortable and, since a container's memory can be changed while it is running, applies instantly with no reboot. Run from the Proxmox host:
+<span class="cmd">pct set &lt;docker-id&gt; -memory 4096</span>
+The number is in megabytes, so 4096 is 4GB. With 64GB in the machine there is no reason to be stingy here.</div>
+<div class="box safe"><span class="lbl">Grow the disk before continuing</span>
+No video ever lands on this container's own disk, because of the signpost arrangement described above. What does land on it is the container's Debian install, Docker itself, and the five app images, which together realistically use 2.5 to 3GB before you have done anything at all. That leaves very little spare on a 4GB disk. The specific thing that catches people out is updates: when Docker pulls a newer version of an app it briefly holds both the old and the new copy at once before swapping them, and on a nearly-full disk that spike makes the update fail. Head it off now while it is a ten-second fix with no reinstall involved. Growing a container's disk is safe and can even be done while it is running, run from the Proxmox host:
+<span class="cmd">pct resize &lt;docker-id&gt; rootfs +12G</span>
+<code>rootfs</code> is simply Proxmox's name for a container's main disk, and <code>+12G</code> means "add twelve" rather than a total, so a 4GB disk becomes a comfortable 16GB.</div>
+
+<h3>Step B, let this container make a folder appear out of thin air</h3>
+<div class="box learn"><span class="lbl">Understand this: FUSE, the thing that makes the rented warehouse look like a folder</span>
+Normally a folder on your machine is backed by a real drive: a physical thing with the files actually on it. <b>FUSE</b> is a Linux feature that lets an ordinary program stand in for that drive. The program says "I will answer questions about a folder," and from then on everything else on the machine can list it, open files in it and read them exactly as if a real disk were underneath, while behind the scenes the program is fetching each piece from wherever it likes. It is a shopfront with no stockroom: the counter behaves exactly like any other counter, and the staff are quietly going next door for every item.
+<br><br>That is how Decypharr makes your TorBox account look like a folder, and it is why Jellyfin can play from it without knowing anything about TorBox at all. Jellyfin opens a file in a folder, which is the only thing Jellyfin has ever known how to do.
+<br><br>A full machine has this available by default. A lightweight LXC container does not, because it shares the Proxmox host's kernel and Proxmox does not hand that capability out unless you ask. So you ask, once, with a tickbox.</div>
 <ol class="steps">
-  <li>Choose <b>Advanced</b> settings when it asks, and give it <b>2 cores, 2GB memory and 8GB disk</b>.</li>
-  <li>The script then asks three questions in a row. Answer <b>y</b> to Portainer, and <b>n</b> to the Portainer Agent and to exposing the Docker TCP socket.
-    <div class="why"><b>What you just agreed to:</b> <b>Portainer</b> is a web page for looking at Docker, reached at <code>&lt;its-address&gt;:9443</code>. Everything you run still gets defined in a recipe file you wrote, and Portainer is simply a window onto it where you can see what is running, read an app's logs and restart something without opening a shell. Worth having, as long as you keep defining things in the file rather than clicking them into existence in the window, because anything created by clicking exists nowhere in writing and cannot be rebuilt from memory later.</div>
-    <div class="safe"><b>Why the other two are no:</b> the <b>Agent</b> is for a Portainer running on some other machine reaching in to manage this one, which is why the script only offers it if you declined Portainer itself; you have no such machine. The <b>TCP socket</b> is labelled insecure by the script for good reason: it opens control of Docker to the network with no password whatsoever, so anything on your network could start, stop or replace any app in this container. Answer <b>n</b>.</div>
+  <li>In the Proxmox web page, click your Docker container in the left-hand list, choose <b>Options</b>, then double-click <b>Features</b>. Tick <b>FUSE</b>, leaving <b>Nesting</b> ticked as it already is, and click OK.
+    <div class="why"><b>Why this is not the change that broke things before:</b> this is not switching the container to privileged, which is the drastic all-or-nothing change that cannot be undone cleanly. This grants one specific capability and nothing else, which is the least privilege habit again, and it is reversible by unticking the same box.</div>
   </li>
-  <li>Docker Compose, the recipe-file tool the rest of this section relies on, is installed as standard and is not one of the questions. The version check at the end of this step confirms it.</li>
-  <li>When the script finishes it prints the new container's ID and address. Write both into your notes file.
-    <div class="why"><b>Why the address matters more here than usual:</b> AIOStreams writes its own address into every link it hands out, including the one link Gelato needs. If you do not know the address before you configure it, you will configure it wrong and have to redo it.</div>
-  </li>
-  <li>Set a <b>DHCP reservation</b> for it in your router, same habit as every other container, so the address it just told you never changes underneath it.</li>
-  <li>Enter the container from the host and confirm Docker is actually running:
-    <span class="cmd">pct enter &lt;its-id&gt;
-docker --version
-docker compose version</span>
-    <div class="why"><b>A new one of the <code>pct</code> family:</b> in the storage section you used <code>pct exec</code> to fire a single command into a container from outside it. <code>pct enter</code> is the other half: instead of shouting one instruction through the door, you walk in and stay. Your prompt changes to that container's name, and from then on everything you type happens inside it until you type <code>exit</code>. Everything in Step D is typed in here, not on the host, and mixing the two up is the single easiest way to end up with files in the wrong machine.</div>
-    <div class="see">You'll see: two version lines, one for Docker and one for Compose. If either says "command not found", the script did not finish; re-run it rather than trying to patch it by hand.</div>
+  <li>Stop and start the container from the Proxmox host so it picks the change up, a full stop and start rather than a reboot from inside, then check the device is now there:
+    <span class="cmd">pct stop &lt;docker-id&gt;
+pct start &lt;docker-id&gt;
+pct exec &lt;docker-id&gt; -- ls -l /dev/fuse</span>
+    <div class="see">You'll see: a line describing <code>/dev/fuse</code> rather than "No such file or directory". That device is the doorway the shopfront trick goes through, and Decypharr will fail on startup without it.</div>
   </li>
 </ol>
 
-<h3>Step D, deploy AIOStreams</h3>
-<p>Everything in this step is typed inside the Docker container you just walked into, not on the Proxmox host. Make a home for it first:</p>
-<span class="cmd">mkdir -p /opt/aiostreams
-cd /opt/aiostreams</span>
-<div class="why"><b>Why here, and what the <code>-p</code> is doing:</b> <code>/opt</code> is Linux's conventional drawer for software that did not come from the package manager you met in the first Linux section, so hand-built things like this live there by custom rather than by rule. <code>mkdir</code> makes a folder and <code>-p</code> tells it to create any missing parent folders on the way rather than complaining, which also makes it harmless to run twice. A trailing letter or word after a command with a dash in front of it is called a <b>flag</b>, and it modifies how that command behaves; you have already used several without them being named.</div>
+<div class="box learn"><span class="lbl">Understand this: mounts have to be allowed to travel, and by default they don't</span>
+There is one more piece of Linux plumbing to set up before the stack goes on, and it is worth understanding rather than pasting blindly, because the failure it prevents is completely silent.
+<br><br>Decypharr runs as a Docker container, so the folder it conjures up appears inside <i>that</i> container. Sonarr, Radarr and the LXC around them are separate places and, by default, a folder that appears inside one container stays there. That is normally exactly what you want, since containers are meant to be isolated. Here it is the opposite of what you want: Sonarr has to be able to follow the signposts it files, and it cannot follow them into a room it is not in.
+<br><br>Linux calls the setting that controls this <b>mount propagation</b>, and it is a per-folder switch meaning roughly "things that get attached in here are allowed to become visible outside." You are going to switch it on for one folder, <code>/mnt</code>, and only that folder. The odd-looking part is that a folder has to already be a mount for the switch to apply to it, so the first command attaches <code>/mnt</code> to itself, which sounds pointless and is the standard way of making an ordinary folder eligible.</div>
 <ol class="steps">
-  <li>Confirm the container's own address, because you are about to write it into a file:
-    <span class="cmd">hostname -I</span>
-    <div class="see">You'll see: one address, for example <code>192.168.1.193</code>. That is the address the rest of this step uses.</div>
+  <li>Open a shell inside the Docker container, either from the Proxmox web page by clicking it and choosing <b>Console</b>, or from the host with <code>pct enter &lt;docker-id&gt;</code>. Create a small service that does this every time the machine starts, before Docker itself:
+    <span class="cmd">nano /etc/systemd/system/shared-mnt.service</span>
+    Paste this in, then save and exit with <code>Ctrl+O</code>, Enter, <code>Ctrl+X</code>:
+    <span class="cmd">[Unit]
+Description=Make /mnt a shared mount point
+Before=docker.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/bin/mount --bind /mnt /mnt
+ExecStart=/bin/mount --make-rshared /mnt
+
+[Install]
+WantedBy=multi-user.target</span>
+    <div class="why"><b>What a systemd service actually is:</b> <b>systemd</b> is the part of Linux that starts everything else when a machine boots and keeps it running. A service is one plain text file telling it "run this, at this point in the startup order." <code>Before=docker.service</code> is the whole reason this works: it guarantees the folder is ready before Docker starts anything that depends on it. <code>Type=oneshot</code> means this runs, finishes, and is not expected to stay running like an app would.</div>
   </li>
-  <li>Generate the key AIOStreams uses to scramble its saved settings:
-    <span class="cmd">openssl rand -hex 32</span>
-    <div class="why"><b>What you just ran:</b> <b>OpenSSL</b> is the standard toolkit every Linux machine carries for encryption work, and it is already installed. <code>rand</code> asks it for random data, <code>32</code> asks for 32 bytes of it, and <code>-hex</code> asks for that written out in <b>hexadecimal</b>, a way of writing numbers using sixteen digits (0 to 9, then a to f) instead of ten, which is how computers' raw data is normally shown in text. Each byte becomes two characters, which is why 32 bytes prints as 64 characters. Randomness is the entire point: a key you invented yourself would be guessable, and this one is not.</div>
-    <div class="why"><b>What "encrypt" means here, plainly:</b> AIOStreams stores your settings scrambled rather than in readable text, and this key is the only thing that unscrambles them. It is not a password you will ever be asked to type. It is more like the cut of a physical key: the lock does not check who you are, it only fits one shape.</div>
-    <div class="undo"><b>Copy this into your notes now, and never change it afterwards.</b> Changing it later does not reset anything, it makes every existing setting permanently unreadable, including the link Jellyfin will be relying on. There is no recovery from that beyond setting the whole thing up again from scratch.</div>
+  <li>Switch it on and run it now, so you do not have to reboot:
+    <span class="cmd">systemctl enable --now shared-mnt.service
+findmnt -o TARGET,PROPAGATION /mnt</span>
+    <div class="see">You'll see: a line for <code>/mnt</code> with <code>shared</code> in the propagation column. <code>private</code>, or no line at all, means it did not take, and the stack will start fine but Sonarr will never manage to import anything.</div>
   </li>
-  <li>Create the settings file, using the same editor you used for <code>fstab</code> back in the storage section:
-    <span class="cmd">nano .env</span>
-    <p>Type in these three lines, swapping in your own address and the key you just generated:</p>
-    <span class="cmd">BASE_URL=http://192.168.1.193:3000
-SECRET_KEY=&lt;the 64 characters openssl printed&gt;
-DATABASE_URI=sqlite://./data/db.sqlite</span>
-    <p>Save with <b>Ctrl+O</b>, Enter, then exit with <b>Ctrl+X</b>.</p>
-    <div class="why"><b>The name really is just a dot:</b> a filename beginning with a dot is <b>hidden</b> in Linux, which means a plain <code>ls</code> will not show it and you may think the file never saved. <code>ls -a</code> shows everything including hidden files. Nothing is secured by being hidden, it is only out of the way; the convention exists so config files do not clutter a folder listing. <b>env</b> is short for environment, the set of named values a program can read when it starts.</div>
-    <div class="why"><b>What each line does:</b> <code>BASE_URL</code> is the return address AIOStreams stamps onto every link it produces, which is why it needs all three parts, the <code>http://</code>, the address and the port, exactly as you type an address into a browser. <code>SECRET_KEY</code> is the key from the previous step. <code>DATABASE_URI</code> says where to keep its records; <b>SQLite</b> is a database that is nothing more than a single file sitting on disk rather than a separate service you have to run and look after, which is the right size for one household.</div>
-    <div class="why"><b>Why a separate file at all:</b> these could be written straight into the recipe file below, but they are not, and this split is the standard way software handles it. The recipe file describes <i>how the app runs</i> and is safe to share or publish; the <code>.env</code> file holds the parts that <i>grant access</i> and is never shared. It is the same config-versus-secrets distinction from the prep section, now enforced by two different files rather than by memory, and it is why almost every real project's ignore list starts with <code>.env</code>.</div>
+</ol>
+
+<h3>Step C, folders, and handing them to the right owner</h3>
+<p>Decide where organised content will live, as subfolders of your existing media mount, run from the <b>Proxmox host</b>. This adds one new folder to the anime, television and films split, <code>symlinks</code>, which is the landing area where Decypharr puts its signposts before Sonarr and Radarr file them properly:</p>
+<span class="cmd">mkdir -p /mnt/media/anime
+mkdir -p /mnt/media/tv
+mkdir -p /mnt/media/movies
+mkdir -p /mnt/media/symlinks</span>
+
+<div class="box learn"><span class="lbl">Understand this: hand these folders to the right owner before anything writes to them</span>
+Folders made with a plain <code>mkdir</code>, like the ones above, end up owned by root, since that is who ran the command. Inside the images this stack uses for Sonarr and Radarr, the app itself runs as an internal user called <code>abc</code>, matched to a real Linux user by the <code>PUID=1000</code> and <code>PGID=1000</code> lines you will see in the compose file below. That mismatch, root owning the folder and user 1000 trying to write into it, is exactly the same category of problem already met with the media drive and with Samba: whoever owns a resource does not match whoever is trying to use it. Left alone, Sonarr and Radarr will refuse to accept those folders later, with an error naming user <code>abc</code> and the word "writable".</div>
+<div class="box safe"><span class="lbl">Why the number is not simply 1000</span>
+The Docker LXC is an <b>unprivileged</b> container, which is the sensible locked-down default and there is no reason to change it. An unprivileged container is not trusted to act as the exact same user numbers on the host's real disk, so Proxmox quietly shifts every internal user ID by a fixed amount, 100000 by default, before anything actually lands on disk. In plain terms, internal user 0 becomes host user 100000, internal user 1 becomes host user 100001, and so internal user <b>1000</b>, the one Sonarr and Radarr actually run as, needs the folder to genuinely belong to host user <b>101000</b>. Giving it plain 1000 looks reasonable and is invisible to the container, because that is not the shifted number it is really operating as. You can confirm there is no unusual custom mapping on this container by running <code>grep idmap /etc/pve/lxc/&lt;docker-id&gt;.conf</code> on the Proxmox host; if that prints nothing, the standard offset applies. Fix the ownership with the shifted number, run from the Proxmox host:
+<span class="cmd">chown -R 101000:101000 /mnt/media</span>
+This only changes who owns the files, it does not touch anything inside them, so it is completely safe with Jellyfin already reading from this same folder. A folder's default permissions let anyone read and look inside regardless of who owns it, and only writing is restricted to the owner, and Jellyfin only ever reads your media.</div>
+
+<p>Now open a doorway from the host's media folder into the Docker LXC, exactly the same bind mount trick used for Jellyfin, run from the Proxmox host:</p>
+<span class="cmd">pct set &lt;docker-id&gt; -mp0 /mnt/media,mp=/media</span>
+<div class="why"><b>Why the path inside is <code>/media</code> again:</b> the Jellyfin container sees this same folder at <code>/media</code> too. Keeping the name identical in both is not tidiness, it is the thing that makes the signposts work. A signpost saying <code>/media/tv/...</code> has to mean the same place in every container that reads it, and the cheapest way to guarantee that is to never let the name differ.</div>
+
+<h3>Step D, get your TorBox account and its key</h3>
+<ol class="steps">
+  <li>Create an account at <code>torbox.app</code> and pick a plan. This is the paid engine that does all the actual fetching, and it is the only thing in this section that costs money.</li>
+  <li>Find the <b>API key</b> in your account settings and copy it into your notes file.
+    <div class="safe"><b>Treat this as a secret, not as configuration.</b> It is not a password you type at a login box, it is a key granting full access to a paid account to whoever holds it. It goes into your notes file, and from there it gets typed into exactly one screen, later in this section. Not into a chat window, not into a screenshot, not into a message to somebody helping you. If it ever does leak, TorBox lets you regenerate it on that same page, which instantly invalidates the old one. That is the right move and it costs you nothing but typing the new one in again.</div>
   </li>
-  <li>Create the recipe file beside it:
-    <span class="cmd">nano compose.yaml</span>
-    <p>Type in exactly this. The indentation is not decoration, so keep the spacing as shown:</p>
-    <span class="cmd">services:
-  aiostreams:
-    image: ghcr.io/viren070/aiostreams:latest
-    container_name: aiostreams
-    restart: unless-stopped
+</ol>
+
+<h3>Step E, the docker-compose.yml file</h3>
+<p>Inside the Docker container, make a folder to keep the stack's own files together and create the recipe file:</p>
+<span class="cmd">mkdir -p /opt/arrstack
+cd /opt/arrstack
+nano docker-compose.yml</span>
+<p>Paste in the following, then save and exit with <code>Ctrl+O</code>, Enter, <code>Ctrl+X</code>:</p>
+<span class="cmd">services:
+  decypharr:
+    image: cy01/blackhole:latest
+    container_name: decypharr
     ports:
-      - 3000:3000
-    env_file:
-      - .env
+      - 8282:8282
     volumes:
-      - ./data:/app/data</span>
-    <p>Save and exit the same way.</p>
-    <div class="why"><b>Why the spacing matters:</b> this file is written in <b>YAML</b>, a plain text format built around indentation. Where most formats use brackets to show what belongs inside what, YAML uses how far in a line starts, the way an indented list in a document shows sub-points belonging to the point above. So <code>image</code> being indented under <code>aiostreams</code> is what makes it a setting <i>of</i> aiostreams. Get the spacing wrong and the file is not merely untidy, it means something different or refuses to load. Spaces only, never tab characters.</div>
-    <div class="why"><b>Reading it line by line:</b> <code>services</code> lists the apps this file describes, and <code>aiostreams</code> is the only one for now, which is exactly how you add a second app later, as another block beneath it. <code>image</code> names which prebuilt app package to fetch and from where; a <b>container image</b> is a ready-made, self contained copy of an app and everything it needs, published for anyone to download, which is why there is nothing to install by hand. <code>restart: unless-stopped</code> means it comes back on its own after a reboot or a crash, unless you deliberately stopped it. <code>env_file</code> pulls in the <code>.env</code> you just wrote.</div>
-    <div class="why"><b>The two lines with a colon in the middle are the same idea you already met:</b> in the storage section you opened a doorway from the host into the Jellyfin container, so a folder on one side appeared at a different path on the other. <code>ports</code> and <code>volumes</code> do exactly that for Docker, and both read <i>outside on the left, inside on the right</i>. <code>3000:3000</code> means port 3000 on the container is a doorway to port 3000 inside the app, which is how anything else on your network reaches it. <code>./data:/app/data</code> means the folder <code>data</code> sitting beside this file (the <code>./</code> is shorthand for "right here") appears as <code>/app/data</code> inside the app. That second one is what keeps your settings when the app itself is thrown away and rebuilt, which is the normal way apps get updated here.</div>
-  </li>
-  <li>Start it:
-    <span class="cmd">docker compose up -d
-docker ps</span>
-    <div class="why"><b>What the two commands are:</b> <code>docker compose up</code> reads the recipe file in the folder you are standing in and makes reality match it, downloading anything missing and starting what is not running. <code>-d</code> is short for <b>detached</b>, meaning it hands your prompt back and lets the app keep running in the background instead of tying up your shell until you close it. <code>docker ps</code> lists what is currently running; <code>ps</code> is an old Unix name for <b>process status</b>, and you will meet it on its own in other contexts.</div>
-    <div class="see">You'll see: a few lines of the image downloading the first time, which can take a minute, then a line in <code>docker ps</code> showing <code>aiostreams</code> with a status beginning <code>Up</code>. If it is missing, <code>docker compose logs</code> prints what the app said as it tried to start, and a mistyped <code>.env</code> or a misaligned YAML line accounts for nearly all first attempts.</div>
-  </li>
-</ol>
+      - ./decypharr/config:/app
+      - /mnt:/mnt:rshared
+      - /media:/media
+    devices:
+      - /dev/fuse:/dev/fuse:rwm
+    cap_add:
+      - SYS_ADMIN
+    security_opt:
+      - apparmor:unconfined
+    environment:
+      - TZ=Etc/UTC
+    restart: unless-stopped
 
-<h3>Step E, configure AIOStreams and get the one link out of it</h3>
+  prowlarr:
+    image: lscr.io/linuxserver/prowlarr
+    container_name: prowlarr
+    ports:
+      - 9696:9696
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Etc/UTC
+    volumes:
+      - ./prowlarr/config:/config
+    restart: unless-stopped
+
+  sonarr:
+    image: lscr.io/linuxserver/sonarr
+    container_name: sonarr
+    ports:
+      - 8989:8989
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Etc/UTC
+    volumes:
+      - ./sonarr/config:/config
+      - /media:/media
+      - /mnt:/mnt:rslave
+    restart: unless-stopped
+
+  radarr:
+    image: lscr.io/linuxserver/radarr
+    container_name: radarr
+    ports:
+      - 7878:7878
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Etc/UTC
+    volumes:
+      - ./radarr/config:/config
+      - /media:/media
+      - /mnt:/mnt:rslave
+    restart: unless-stopped
+
+  jellyseerr:
+    image: fallenbagel/jellyseerr:latest
+    container_name: jellyseerr
+    ports:
+      - 5055:5055
+    environment:
+      - LOG_LEVEL=info
+      - TZ=Etc/UTC
+    volumes:
+      - ./jellyseerr/config:/app/config
+    restart: unless-stopped</span>
+<div class="why"><b>Why the spacing matters:</b> this file is written in <b>YAML</b>, a plain text format built around indentation. Where most formats use brackets to show what belongs inside what, YAML uses how far in a line starts, the way an indented list in a document shows sub-points belonging to the point above. So <code>image</code> being indented under <code>sonarr</code> is what makes it a setting <i>of</i> Sonarr. Get the spacing wrong and the file is not merely untidy, it means something different or refuses to load. Spaces only, never tab characters.</div>
+<div class="why"><b>Reading the pieces that repeat:</b> <code>image</code> says which prebuilt package to run and where to fetch it from, which is why there is nothing to install by hand. <code>ports</code> says which door numbers on the Docker host reach that app, the same idea as every address-and-port pair used throughout this guide. <code>volumes</code> says which real folders a container is allowed to see and what they are called inside it; the <code>./sonarr/config</code> style entries are just small folders Docker creates right there in <code>/opt/arrstack</code> to hold each app's own settings, kept separate from your media. <code>PUID</code> and <code>PGID</code> are the user and group numbers these apps run as internally, which is the ownership matching from Step C. <code>restart: unless-stopped</code> means an app comes back on its own after a reboot or a crash, unless you deliberately stopped it.</div>
+<div class="why"><b>Reading the four lines that are unique to Decypharr:</b> <code>devices</code> hands it the FUSE doorway from Step B, and <code>cap_add: SYS_ADMIN</code> plus <code>security_opt: apparmor:unconfined</code> are the permissions Linux insists on before any program is allowed to stand in for a disk. Those three exist only because Decypharr is the one piece doing the shopfront trick. The <code>rshared</code> on its <code>/mnt</code> line is the propagation switch from Step B being used: it says the folder Decypharr conjures up should be allowed to travel outward. The matching <code>rslave</code> on Sonarr and Radarr is the receiving half, meaning "show me anything that appears out there, but I will not be attaching anything of my own." One sends, two receive.</div>
+
+<p>Bring the whole stack up with one command, run from <code>/opt/arrstack</code>:</p>
+<span class="cmd">docker compose up -d</span>
+<div class="see">You'll see: Docker pulling each image the first time, which can take a few minutes, then <code>docker ps</code> listing all five containers as running. If one is missing, <code>docker compose logs decypharr</code>, or whichever name is absent, prints what that app said as it tried to start. A mistyped line or a misaligned indent accounts for nearly every first attempt.</div>
+
+<div class="box undo"><span class="lbl">If you need to undo this entirely</span>
+<code>docker compose down</code>, run from <code>/opt/arrstack</code>, stops and removes all five containers in one go, leaving the config folders and your media untouched, so <code>docker compose up -d</code> brings everything straight back the way it was.</div>
+
+<h3>Step F, configure Decypharr</h3>
+<p>Open your Docker host's own address on port <code>8282</code>, for example <code>http://192.168.1.200:8282</code>. If you are unsure of that address, <code>ip -4 a show eth0</code> run inside the Docker container will show you. The first visit walks you through a short setup.</p>
 <ol class="steps">
-  <li>On any computer on your network, open <code>http://&lt;its-address&gt;:3000/stremio/configure</code>, using the address <code>hostname -I</code> gave you.
-    <div class="why"><b>The part after the port is a <b>path</b>:</b> an address gets you to the machine and the port gets you to the right app on it, but many apps then keep different pages at different names underneath, written with slashes, exactly like folders. Visiting the bare address here lands somewhere unhelpful; the settings page lives at <code>/stremio/configure</code> and nowhere else. This is a normal thing for apps to do and you will meet it again.</div>
-    <div class="see">You'll see: AIOStreams' configuration page.</div>
+  <li>Create the login for Decypharr's own page when it asks, and write it in your notes file.
+    <div class="why"><b>Why this one has a login when Sonarr and Radarr did not:</b> Decypharr holds your TorBox key, which is the most valuable single thing in this whole section. It is also the app most worth being careful with if you ever expose any of this beyond your own network.</div>
   </li>
-  <li>Get your bearings first. Down the left of this page is a sidebar with six entries: <b>Services</b>, <b>Addons</b>, <b>Filters</b>, <b>Sorting</b>, <b>Formatter</b> and <b>Save &amp; Install</b>. You need five of them, in that order, and the sixth is for tuning later.
-    <div class="why"><b>What the six are for:</b> Services is <i>who fetches the video</i>, Addons is <i>where titles and streams are looked up</i>, Filters is <i>which results you refuse outright</i>, Sorting is <i>which of the survivors comes first</i>, and Save &amp; Install is <i>how you get the result out</i>. Formatter only changes how results are labelled on screen, so that is the one you can leave alone.</div>
-    <div class="why"><b>Why Sorting is not optional here, even though it sounds like decoration:</b> in the usual way of using a setup like this, a person is handed a list of twenty results and picks one by eye, so the order is a convenience. Jellyfin never shows you that list. It takes the first result and plays it, and that is the whole of its decision-making. So on this setup, Filters and Sorting together <i>are</i> the choice you would otherwise have made by hand, and every result you fail to refuse or fail to rank is a result that can end up on your television.</div>
+  <li>Add TorBox as the provider. Choose <b>TorBox</b> from the list and type in the API key from Step D. Type it rather than pasting from anywhere public, and switch on <b>download uncached</b>.
+    <div class="why"><b>What cached and uncached actually mean, since both words appear here for the first time:</b> TorBox is one enormous shared shelf. When somebody, anybody, has previously asked for a particular copy of something, it is already sitting there ready to hand over and it arrives in seconds. That is <b>cached</b>. When nobody has ever asked for that exact copy, it has to be fetched first, which takes anywhere from a minute to an hour depending on how many people are sharing it. That is <b>uncached</b>.
+    <br><br>This switch decides what happens in the second case. Left off, Decypharr shrugs and reports failure, and Sonarr goes looking for a different copy, and if every copy is uncached it quietly finds nothing at all. Switched on, TorBox goes and fetches it while Sonarr sits waiting in its queue exactly as it would for any ordinary download. This is the single setting that decides whether older television and most anime work at all, because those are precisely the things nobody has asked for recently.</div>
   </li>
-  <li>Open <b>Services</b>, find <b>TorBox</b> in the list, and click the <b>cogwheel</b> at the end of its row to open its settings. Paste in the API token from Step B, then close that panel.
-    <div class="why"><b>Why a whole list of them:</b> AIOStreams supports many debrid providers and you are only using one. If you ever add a second, the order of this list is the order it prefers them in.</div>
+  <li>Set the mount. Choose <b>DFS</b> as the type and <code>/mnt/decypharr</code> as the mount path. Under its own settings, set <b>uid</b> and <b>gid</b> to <code>1000</code>, and switch on <b>allow other</b>.
+    <div class="why"><b>Why those numbers and that switch:</b> 1000 is the same user number Sonarr and Radarr run as, from the compose file, so the conjured folder belongs to the user that needs to read it. <b>Allow other</b> means "let users other than the one who created this folder look inside it", which is off by default and has to be on here because the program creating the folder and the programs reading it are deliberately different users. Leaving it off produces a folder that exists and is empty to everyone but Decypharr, which is a confusing failure to diagnose from the outside.</div>
   </li>
-  <li>Open <b>Addons</b>, then the <b>Marketplace</b> tab inside it. Search for <b>TMDB</b> and click <b>Configure</b>. Before you install it, change two things on that screen. In the <b>Resources</b> box, make sure <b>catalog</b> and <b>meta</b> are <i>both</i> selected. Then find the switch called <b>Provide IMDB IDs</b> and turn it <b>on</b>. Now click <b>Install</b>. Then search for <b>Comet</b>, configure it, leave its options alone, and install that too. Finally search for <b>StremThru Torz</b> and install it, and then search for <b>AnimeTosho</b> and install that one too.
-    <div class="why"><b>"Install" is a misleading word here:</b> nothing is downloaded onto your machine and nothing new starts running. It means adding that source to your own personal blend, which is the entire job AIOStreams does. Think of it as ticking an ingredient rather than installing a program.</div>
-    <div class="why"><b>Why more than one of them:</b> they answer different questions. <b>TMDB</b> is a large public film and television database, free to use, and it supplies the titles, posters, years and descriptions, so it knows <i>that a programme exists</i>. The other three go looking for <i>where a copy can actually be fetched from</i>. With only the first, you end up with a beautiful library full of titles that will not play.</div>
-    <div class="why"><b>Why three sources of streams and not one:</b> <b>Comet</b> and <b>StremThru Torz</b> do the same job over different piles, so having both simply widens the net. <b>AnimeTosho</b> is there for a narrower and much less obvious reason. It covers anime only, and unlike the other two it is a source AIOStreams operates itself rather than a separate service it forwards your question to. That distinction sounds academic and it is the difference between a large part of an anime library playing and not playing, for a reason covered at the end of Step G. None of the three needs an account or costs anything, and all three fetch through the TorBox token you entered a moment ago.</div>
-    <div class="why"><b>Why those two settings matter more than they look:</b> <b>catalog</b> and <b>meta</b> are two separate jobs that people assume are one. <b>Catalog</b> supplies the browsing rows, the wall of posters under headings like Popular and Trending. <b>Meta</b> answers a much more specific question: tell me everything about <i>this one programme</i>, including how many seasons it has and which episodes are in each. Jellyfin cannot lay out a programme it has never been told the shape of, so without <b>meta</b> you get a library that looks perfect from a distance and has no working structure underneath.</div>
-    <div class="why"><b>Why an id switch decides whether any of it works:</b> every part of this chain refers to a programme by its <b>IMDb id</b>, the code beginning <code>tt</code> that you see in an IMDb web address. It is the one name everything agrees on. TMDB, being a different database, files things under its own numbering instead. <b>Provide IMDB IDs</b> tells it to answer questions asked the <code>tt</code> way as well as its own. Leave it off and requests arrive in a language it does not answer to, and you get back nothing at all rather than an error saying so, which is by far the harder kind of fault to notice.</div>
-    <div class="see">You'll see: all four listed under the <b>Addons</b> tab with a small tag each showing what they provide. TMDB should show that it provides catalog and meta; the other three should each show stream.</div>
+  <li>Set the <b>download folder</b> to <code>/media/symlinks</code>, and confirm the <b>download action</b> is <b>symlink</b>, which is the default.
+    <div class="why"><b>This is the setting the entire section depends on:</b> <b>symlink</b> means Decypharr writes a signpost, which is what you want. The alternative, <b>download</b>, means it genuinely copies the whole file onto your disk, which works perfectly well and fills an eight terabyte drive in about a fortnight. It is worth knowing that option is there, because it is exactly how you would pin a handful of true favourites onto real disk later, but it is not the default behaviour you want.</div>
   </li>
-  <li>Open <b>Filters</b> and scroll down to the <b>Size</b> section. On the <b>Global</b> tab you get three separate sliders, each with its own minimum and maximum box: <b>Movies</b>, <b>Series</b> and <b>Anime Series</b>. Leave all three minimums alone and set the maximums to about <b>20GB for movies</b>, <b>5GB for series</b> and <b>5GB for anime series</b>. There is a per-resolution version of the same three sliders underneath; ignore it for now, the global ones are enough.
-    <div class="why"><b>Why you are deliberately refusing the biggest files:</b> the sources behind this setup include <b>remuxes</b>, which are untouched rips straight from a disc with nothing compressed at all. A single film can be 60GB or 80GB. Nothing in your house benefits from that. Your television cannot show more detail than a good 15GB copy already contains, but every device between here and the screen has to move all 80GB of it in real time, and that is where stuttering comes from. Refusing them at this stage is one of the highest-value settings in this entire guide, and it costs you picture quality you would need a trained eye and a much larger television to notice.</div>
-    <div class="why"><b>Why anime gets a slider of its own:</b> an anime episode is usually about half the length of a drama episode, so the same number means something quite different depending on which you are watching, and the copies that circulate are often untouched disc rips at sizes you would normally expect from a feature film. With one number for everything you would be forced to choose: set it high and let those through, or set it low and start refusing ordinary television alongside them. The page itself tells you that where both could apply, the anime number is the one that counts, so if you watch any anime at all this box is not optional.</div>
-    <div class="why"><b>What the number is actually compared against, because the obvious guess is wrong:</b> a lot of results are bundles holding a whole season at once, and a season bundle can easily be 40GB. It looks like a 5GB limit would throw every one of those away. It doesn't. The limit is measured against <i>the single episode being handed to you out of the bundle</i>, not the bundle's total. The total is recorded separately, under a different name, and never gets compared to these numbers at all. So a 40GB season made of 1.4GB episodes is judged as 1.4GB and comes through untouched. The one exception is a result nobody has fetched before, where no particular episode has been picked out yet and the bundle's total is the only figure known, and those are the slow results you would be skipping past anyway.</div>
-    <div class="see">You'll see: nothing dramatic. This setting shows its worth later, as the absence of a problem rather than the presence of a feature.</div>
-  </li>
-  <li>Still in <b>Filters</b>, find the <b>Generic Stream Attributes</b> group in the sidebar and open <b>Encode</b>. Each attribute here gives you four boxes, and the only one you want is <b>Excluded Encodes</b>: put <b>AV1</b> in it. Then open <b>Visual Tag</b> just below, and in <b>Excluded Visual Tags</b> put <b>DV Only</b>. Leave the other boxes empty.
-    <div class="why"><b>What an "encode" is:</b> video has to be squeezed down before it can be sent anywhere, and there are competing methods for doing the squeezing. Each one is a different puzzle, and a device can only unwrap the puzzles it was built to unwrap. <b>AVC</b> is the old one and everything on earth can play it. <b>HEVC</b> is the newer one and every screen you own handles it. <b>AV1</b> is newer still, and while it is genuinely the cleverest of the three, most televisions and older phones cannot decode it at all, which sends the file straight back to the server to be rebuilt. You are refusing it not because it is worse but because it is the one thing in this list your household cannot open.</div>
-    <div class="why"><b>Why <i>DV Only</i> and not <i>DV</i>:</b> <b>Dolby Vision</b> is a brighter, richer colour format. Some files carry it as an extra layer sitting on top of an ordinary version, so a screen that doesn't understand it simply ignores the layer and shows the ordinary picture. Other files carry it and nothing else, and on a screen that doesn't understand it those play in lurid green and purple, which is the single most alarming-looking fault in home video and looks like a broken server. This page separates the two cases for you, and <b>DV Only</b> means exactly the second one. Excluding it removes the files that break and keeps every file that would have looked fine, which is why this is a better setting than refusing Dolby Vision outright.</div>
-    <div class="see">You'll see: your chosen terms sitting as small tags inside those two boxes. Nothing else changes on screen.</div>
-  </li>
-  <li>Open <b>Sorting</b>, the next entry in the sidebar, and stay on the <b>Global</b> tab. There is a box for adding criteria and it starts empty. Add three, in this order: <b>Cached</b>, then <b>Seeders</b>, then <b>Size</b>. Each one drops in as a row you can drag, with a small arrow button on the right showing which way round it goes. All three want to be pointing the way they arrive, which is largest-first, so add them and change nothing else.
-    <div class="why"><b>What a list of criteria actually means:</b> it is a set of tie-breakers read top to bottom, the way you would sort a pile of papers by date and then, for two on the same date, by name. <b>Cached</b> first puts the ones that start instantly above the rest. <b>Seeders</b> next means that among equals, prefer the copy the most people are sharing, which is a good proxy for the copy least likely to stall. <b>Size</b> last means that among those, take the biggest, and since you already capped the maximum in the Size filter, biggest here means the best-looking copy that is still under your ceiling rather than an eighty gigabyte monster.</div>
-    <div class="why"><b>Cached and seeders, since both words appear here for the first time:</b> your debrid service is one enormous shared shelf. When somebody, anybody, has already asked for a particular copy of something, it is sitting there ready to hand over and it starts playing in a second or two. That is <b>cached</b>. When nobody has ever asked for that exact copy, it has to be fetched first, and it is fetched from the people who happen to have it and leave it available for others to take from. Each of those people is a <b>seeder</b>. Two hundred of them means it arrives in minutes; none of them means it never arrives at all. So this list, read as a sentence, says: give me the one that is already on the shelf, and if nothing is, give me the one the most people are sharing.</div>
-    <div class="why"><b>Why this is a sort and not a filter, which is the part worth understanding:</b> the natural instinct is to go to Filters and refuse uncached results outright, or refuse anything under a certain number of seeders. Both look sensible and both quietly break this setup. Refusing uncached results means anything the shelf does not already hold, which is most anime and most older television, stops existing rather than becoming slower, and the episode reports no sources with nothing on screen to say why. A seeder floor fails in a nastier way: plenty of sources report no seeder count at all rather than reporting zero, a filter cannot tell "nobody is sharing this" from "nobody told me", and it throws out both. Sorting has neither problem, because a result with no information about it simply sinks to the bottom of the list instead of being deleted from it. You still get an answer, and you get the best answer available.</div>
-    <div class="see">You'll see: three rows under the Global tab in that order. The other tabs, for movies, series and anime separately, stay empty and fall back to this one.</div>
-  </li>
-  <li>Open <b>Save &amp; Install</b>, the last entry in the sidebar. Under <b>Save Configuration</b>, set a password and click <b>Save</b>.
-    <div class="why"><b>What that password is for:</b> it locks this configuration, not the app. Anyone on your network who opens this address could otherwise change which services and sources you use, or read the token you pasted in earlier. It also comes back out with the <b>UUID</b> shown just above it, and those two together are what let you return and edit this configuration later, so both belong in your notes file.</div>
-  </li>
-  <li>Under <b>Installation Options</b>, find <b>Direct Manifest URL</b> on the right and copy it. Paste it into your notes file. That address is the <b>manifest</b>, and it is the one thing Step F needs. Ignore the <b>Install to Stremio</b> buttons beside it; those are for people using Stremio as their player rather than Jellyfin.
-    <div class="why"><b>What a manifest is:</b> one web address that describes everything this addon can do and where to ask for it, the addon's own contents page. Every choice you just made travels inside it, which is why Jellyfin only ever needs this single link and never needs to know about TorBox, TMDB or Comet by name.</div>
-    <div class="safe"><b>Treat this link as a credential, not an address.</b> Your configuration's identifier is part of the URL itself, so anyone holding it can use your setup and therefore your paid TorBox access. It goes in your notes file and gets pasted into Jellyfin, and nowhere else. If it ever gets out, come back here, save with a new password, and the old link stops being useful.</div>
-  </li>
+  <li>Under <b>Settings</b>, then <b>Arrs</b>, leave the list empty for now. You will come back once Sonarr and Radarr have API keys to hand over.</li>
 </ol>
+<p>Check the shopfront is actually open, run inside the Docker container:</p>
+<span class="cmd">ls /mnt/decypharr</span>
+<div class="see">You'll see: a small set of folders including <code>__all__</code>, which is the one everything else points into. An empty listing is expected at this stage since you have not asked for anything yet, but the folder itself must exist. "No such file or directory" means the mount did not come up, and <code>docker logs decypharr</code> will say why, with the FUSE tickbox from Step B being the usual culprit.</div>
 
-<h3>Step F, install Gelato inside Jellyfin</h3>
+<h3>Step G, give Jellyfin its own window onto the same shelf</h3>
+<div class="box learn"><span class="lbl">Understand this: why Jellyfin needs anything at all here</span>
+This is the consequence of the symlink idea flagged right at the top. Sonarr is about to fill <code>/media/tv</code> with signposts reading <code>/mnt/decypharr/...</code>. Jellyfin can already see <code>/media/tv</code>, because of the bind mount you set up back in the storage section, so it will see those signposts perfectly well. It just will not be able to follow any of them, because <code>/mnt/decypharr</code> exists inside the Docker container and the Jellyfin container is a different machine as far as Linux is concerned. The symptom is a library full of correctly named episodes that all refuse to play.
+<br><br>The fix is to give the Jellyfin container its own view of the same shelf, at the same name. Decypharr already publishes everything it holds over <b>WebDAV</b>, which is simply a standard way of serving a folder over a web connection, the same idea as a shared network drive at an office. A small program called <b>rclone</b> can take an address like that and turn it back into a folder using the same FUSE trick from Step B. So Jellyfin gets a folder called <code>/mnt/decypharr</code> too, filled the same way, and every signpost resolves.</div>
 <ol class="steps">
-  <li>In Jellyfin, go to <b>Dashboard</b>, then <b>Plugins</b>, then the <b>Repositories</b> tab, and click the <b>+</b> to add one. Give it any name you like, and for the URL enter exactly:
-    <span class="cmd">https://raw.githubusercontent.com/lostb1t/Gelato/refs/heads/gh-pages/repository.json</span>
-    <div class="why"><b>What you just added:</b> a <b>plugin repository</b> is a catalogue address, not the plugin itself. Jellyfin ships knowing about one official catalogue; adding a second one just tells it about another shelf it is allowed to browse. Nothing is installed by this step.</div>
+  <li>In the Proxmox web page, click your <b>Jellyfin</b> container, choose <b>Options</b>, double-click <b>Features</b>, and tick <b>FUSE</b> here as well. Then stop and start it from the Proxmox host:
+    <span class="cmd">pct stop &lt;jellyfin-id&gt;
+pct start &lt;jellyfin-id&gt;</span>
   </li>
-  <li>Go to the <b>Catalogue</b> tab, find <b>Gelato</b> in the list, and install it. When Jellyfin asks you to restart, restart it.
-    <div class="safe"><b>One thing to avoid back in AIOStreams:</b> Gelato's authors specifically warn against the <b>Debridio</b> flavours of the TMDB addon, which appear alongside the plain one when you search. Use <b>The Movie Database</b>, the one whose id reads <code>tmdb-addon</code>, which is what Step E told you to pick.</div>
-    <div class="see">You'll see: Gelato appear under <b>My Plugins</b> with a status of Active after the restart. If it never appears in the catalogue at all, the version check in Step A is the first thing to re-read.</div>
+  <li>Open a shell inside the Jellyfin container and install rclone:
+    <span class="cmd">apt update
+apt install -y rclone fuse3</span>
   </li>
-  <li>Open Gelato's settings. Once the plugin is installed it gets its own <b>Gelato</b> entry in the Dashboard sidebar, under the <b>Plugins</b> group, which is the quickest way in. Paste the manifest link from Step E into <b>AIOStreams URL</b>. Then change <b>Movies Path</b> and <b>Series Path</b>, which arrive pointing at <code>/tmp/gelato/...</code>, to these instead, and save:
-    <span class="cmd">/media/gelato/movies
-/media/gelato/series</span>
-    <div class="undo"><b>Do not leave the defaults.</b> <code>/tmp</code> is Linux's scratch drawer, meant for things that only need to exist while the machine is running, and it is emptied on every reboot. Left as they are, your entire library disappears the next time that container restarts. <code>/media</code> is the doorway onto your big drive that you opened in the storage section, so the two paths above survive both reboots and the container being rebuilt.</div>
-    <div class="why"><b>Why not point these at the folder holding films you already own:</b> these two folders are how Gelato marks its own territory, and Jellyfin uses them to tell rented titles apart from owned ones. Point them at your real folders and that line disappears, which is exactly the line you want to be able to see the day a subscription lapses. Keep them apart. Write both paths into your notes file, because the next step points Jellyfin at these same two and they have to agree exactly.</div>
-    <div class="safe"><b>Keep films and series in separate paths.</b> They arrive that way by default, so this is only a warning against tidying them into one. If a single folder holds both, Gelato does not throw an error. It fills the library anyway and the result looks half right, with series appearing as single films, episodes missing, or artwork attached to the wrong thing. Because there is no error message to search for, this is worth getting right on the first pass rather than debugging afterwards.</div>
+  <li>Tell rclone where the shelf is. Create its configuration file:
+    <span class="cmd">mkdir -p /root/.config/rclone
+nano /root/.config/rclone/rclone.conf</span>
+    Paste this in, replacing the address with your Docker container's own, and the login with the one you created in Step F:
+    <span class="cmd">[decypharr]
+type = webdav
+url = http://192.168.1.200:8282/webdav
+vendor = other
+user = your_decypharr_username
+pass = your_decypharr_password</span>
+    <div class="why"><b>What this file is:</b> a named list of places rclone knows how to reach. <code>[decypharr]</code> is just a label you chose, used in the next step to refer to everything below it. Nothing here is specific to media; rclone speaks to dozens of kinds of storage this same way.</div>
   </li>
-  <li>Stay on the same settings page and scroll down to <b>Importer</b>. It lists every catalogue your feed can offer, each with a <b>Name</b>, a <b>Type</b> of movie or series, an <b>Enabled</b> tick box, a <b>Collection</b> tick box and a <b>Max items</b> number. They all arrive switched off. Tick <b>Enabled</b> on the ones you want, then save.
-    <div class="undo"><b>Nothing at all is imported until you do this.</b> The list starts empty of ticks, and the import task treats that as a full and valid instruction: fetch nothing. It runs, reports success, finishes in under a second and leaves you with two empty libraries and no error anywhere. If you take one thing from this step, it is that a successful import and an empty library usually means nothing is ticked here.</div>
-    <div class="why"><b>What to tick to begin with:</b> <b>Trending</b> and <b>Popular</b> in both movie and series flavours are the sensible start, because they are the closest thing to a general "what is worth watching" shelf. Every catalogue you add is more rows in the database and a longer import, so switch on a few, see what the library looks like, and come back for more rather than ticking everything on the first pass.</div>
-    <div class="why"><b>What Max items does:</b> it caps how many titles that one catalogue contributes, and it starts at 100. That is a deliberate brake rather than a limitation to work around. A hundred titles from each of several catalogues is already a large library, and raising it multiplies both the import time and the amount Jellyfin has to sift through every time it draws a screen.</div>
-    <div class="why"><b>What the Collection tick box does:</b> it makes Jellyfin build a <b>collection</b>, its word for a named shelf you can open like a folder, holding exactly that catalogue's titles. The titles still sit in the ordinary library alongside everything else, so this is a second way in rather than a separation. It is useful when a catalogue is a coherent theme worth browsing on its own.</div>
+  <li>Create a service that mounts it at boot, the same pattern as the one in Step B:
+    <span class="cmd">nano /etc/systemd/system/decypharr-mount.service</span>
+    Paste this in, then save and exit:
+    <span class="cmd">[Unit]
+Description=Mount the Decypharr shelf
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=notify
+ExecStart=/usr/bin/rclone mount decypharr: /mnt/decypharr \
+  --allow-other \
+  --dir-cache-time 10s \
+  --vfs-cache-mode full \
+  --vfs-cache-max-size 20G \
+  --vfs-read-chunk-size 32M \
+  --buffer-size 64M
+ExecStop=/bin/fusermount -uz /mnt/decypharr
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target</span>
+    <div class="why"><b>The settings that matter, in plain terms:</b> <code>--allow-other</code> is the same permission as in Decypharr's own settings, letting the Jellyfin process read a folder a different user created. <code>--dir-cache-time 10s</code> keeps its idea of what is on the shelf fresh, which matters because new things appear there constantly. The <b>cache</b> settings decide how much of a file rclone keeps locally while you watch: a small local copy of the parts you have already seen is what makes skipping backwards instant instead of a fresh trip over the internet, and 20GB is a generous working area for a household. <code>Restart=always</code> means that if the connection drops, or the Docker container is restarted underneath it, the mount rebuilds itself rather than staying broken until you notice.</div>
+  </li>
+  <li>Allow the "other users" permission at the system level, since Linux requires it to be granted twice, then start the mount:
+    <span class="cmd">echo user_allow_other >> /etc/fuse.conf
+mkdir -p /mnt/decypharr
+systemctl enable --now decypharr-mount.service
+ls /mnt/decypharr</span>
+    <div class="see">You'll see: the same <code>__all__</code> folder you saw from inside the Docker container. That is the proof the two machines are now looking at one shelf. If it is empty or errors, <code>systemctl status decypharr-mount</code> prints the reason, and a wrong address or a mistyped password in the config file accounts for most of them.</div>
   </li>
 </ol>
-
-<h3>Step G, give Gelato its libraries, then fill them</h3>
-<ol class="steps">
-  <li>In Jellyfin, go to <b>Dashboard</b>, then <b>Libraries</b>, then <b>Add Media Library</b>. Create one of type <b>Movies</b> pointed at the <b>Movies Path</b> from your notes, and a second of type <b>Shows</b> pointed at the <b>Series Path</b>.
-    <div class="why"><b>Why two libraries and not one:</b> Jellyfin treats a library's type as a promise about what is inside it, and it reads a film and an episode very differently. This is the same reason the paths are separate, enforced a second time at the Jellyfin end.</div>
-  </li>
-  <li>On the <b>Shows</b> library only, scroll down and you will find not one list of metadata downloaders but three, each labelled with a bracket: <b>Metadata downloaders (TV Programmes)</b>, <b>Metadata downloaders (Series)</b> and <b>Metadata downloaders (Episodes)</b>. In each of the three, tick <b>Gelato</b> and drag it to the <b>top</b>. Then save.
-    <div class="why"><b>Why there are three of them:</b> a shows library holds three different levels of thing. The programme, the seasons inside it, and the episodes inside those. Jellyfin looks each level up separately, so each level gets its own ordered list of who to ask. Think of a filing cabinet where the drawer, the folders in the drawer and the pages in the folders each have their own librarian.</div>
-    <div class="why"><b>Why the order matters:</b> each list is a queue, not a committee. Jellyfin asks the first entry and takes its answer, and the ones below only fill in what is still blank. The ordinary downloaders describe episodes that exist as real files on disk, and this library has none, so if one of them answers first your series show up as empty shells. Gelato has to be asked first for the seasons and episodes to appear at all.</div>
-    <div class="safe"><b>Gelato is listed in the Movies library too. Leave it unticked there.</b> A plugin registers once and Jellyfin then offers it everywhere, whether or not it has anything useful to say. Gelato's only skill here is inventing seasons and episodes that have no file behind them, and a film has no inside, so there is nothing for it to do. The downloaders already ticked in that library are the right ones for films.</div>
-  </li>
-  <li>Go to <b>Dashboard</b> and look down the left sidebar to the <b>Advanced</b> group near the bottom, where you will find <b>Scheduled Tasks</b>. Open it, find Gelato's <b>catalog import</b> task, and run it.
-    <div class="why"><b>Nothing appears without this:</b> creating the libraries only tells Jellyfin where to look. This task is what actually goes and fetches the catalogue through AIOStreams and writes every title it finds into Jellyfin's own database, filed under those two paths. A scheduled task in Jellyfin is a job it runs on a timer, and every one of them can also be triggered by hand, which is what you are doing here.</div>
-    <div class="see">You'll see: the task running with a progress indicator, then the two libraries filling with title cards over the next few minutes, while the disk barely moves.</div>
-    <div class="why"><b>Look in those folders and they will still be almost empty.</b> Each holds a single small file called <code>stub.txt</code>, and that is correct. Gelato does not write a file per title. It puts each title straight into Jellyfin's catalogue as a database entry, and the one <code>stub.txt</code> exists only to give Jellyfin something real to find so it agrees to scan the folder at all. Leave that file alone. An almost empty folder next to a full library is the setup working exactly as intended.</div>
-  </li>
-  <li>Stay on that page and look at the rest of the <b>Gelato</b> group. Alongside the import sit <b>Sync series trees</b> and <b>Sync release dates</b>. Both already run by themselves, at startup and once a day, so there is nothing to schedule. Run <b>Sync series trees</b> once by hand now, so you have seen it work and know where it lives.
-    <div class="why"><b>Why a programme that is still being made needs a job of its own:</b> the import wrote down the programmes as they were on the day it ran. A finished series never changes again, but one that is still airing grows underneath you: a new season arrives at the source weeks later, and nothing goes back to look for it unless something is told to. That is this task's entire purpose. It is also why a show can sit in your library quite happily for months and then sprout a new season that refuses to play while every older episode is fine.</div>
-    <div class="why"><b>A red <i>Missing</i> label is not the fault it looks like:</b> open any episode's media information and you will often see the word <b>Missing</b> in red, including on episodes that play perfectly well. In an ordinary Jellyfin library that word means a file you expected to be on the disk is not there. Here there are no files at all, so it means something much milder: no stream has been chosen for this episode yet. Gelato only goes looking for one at the moment you press play, so until you have played it, an episode honestly does have nothing attached. Judge an episode by whether it plays, not by that label, and if you are ever unsure, look at the label on an episode you know works and compare.</div>
-    <div class="why"><b>What the release dates one is for:</b> it stamps each title with the date it actually became available, which is what Gelato uses if you ever switch on its filter for unreleased items. Harmless to run, and worth running now so the dates are already there if you turn that filter on later.</div>
-    <div class="safe"><b>Below those sits a second group, <i>Gelato Maintenance</i>, and its two entries are nothing like each other.</b> <b>WARNING: purge all gelato items</b> does exactly what it says and empties both libraries back to nothing, so leave it alone. <b>Purge streams</b> is far milder and you will want it before long: it forgets which copy Gelato picked for each thing you have played, and touches nothing else. It already runs itself once a week. The last box in this section explains when to run it by hand.</div>
-  </li>
-</ol>
-
-<div class="box safe"><span class="lbl">If one season refuses to play while everything older is fine</span>
-Run <b>Sync series trees</b> first, since a new season that is not there at all is usually just that task not having run since the season appeared. If the episodes are listed but will not play, open the programme, use the three dots, choose <b>Refresh metadata</b> with <b>Replace all metadata</b>, and let it rebuild that one show rather than the whole library.
-<br><br>If it still will not play, the thing to check is the numbering, and it helps to know exactly what Gelato does when you press play. It takes three pieces of information: the programme's <b>IMDb id</b>, which you can see under <b>Edit metadata</b>, plus the season number and the episode number shown on that episode. It glues them together into a single request and asks AIOStreams for anything matching. If the id is blank it has nothing to ask with. If the numbers do not mean the same thing at the far end, it asks a perfectly well formed question about an episode that, as far as the sources are concerned, does not exist, and gets an empty answer back with no error.
-<br><br>That second case is where anime comes unstuck, and it is worth understanding rather than memorising. Western programmes are counted the same way everywhere: series three, episode one. A lot of anime is counted straight through instead, so the first episode of the fourth season is episode sixty-seven of one long run. Both are legitimate. The trouble starts because your metadata source picks one of the two and the people naming the files picked the other, so season one episode sixty-seven and season four episode one are the same programme under two names with nothing joining them up. The tell is very specific: everything up to a certain episode plays, and everything after it does not.
-<br><br>There is no metadata source that gets this right for every programme, so the fix is not to keep swapping them until one fits. It is to have at least one stream source that works the numbering out for itself, and that is the entire reason Step E has you install <b>AnimeTosho</b> alongside the others. Most addons are separate services that AIOStreams only forwards your question to, so a badly addressed question goes out and an empty answer comes back, which is why adding more of that kind never helps. AnimeTosho is one AIOStreams runs itself, so it can look the programme up first, recognise a series that is counted straight through, work out both ways of naming that episode and search for both. It then stops mattering which of the two your metadata happens to use. If you skipped it, go back and add it now, and restart Jellyfin afterwards for the reason given just below.</div>
-
-<div class="box safe"><span class="lbl">If you change your AIOStreams configuration later</span>
-Changing anything in AIOStreams takes three steps, not one, and skipping either of the other two gives you the old behaviour with no error to explain it.
-<br><br><b>One, save it.</b> Every screen in AIOStreams edits a working copy that nothing else can see. Go to <b>Save &amp; Install</b>, put your existing password in and press <b>Save</b>, or you have changed nothing at all.
-<br><br><b>Two, restart Jellyfin.</b> Gelato reads that configuration once, when it starts, and never notices it changing underneath. Until it restarts it is still working from what it read last time.
-<br><br><b>Three, run <i>Purge streams</i></b> from Scheduled Tasks. This is the one that catches people out, because the reason for it is invisible. The first time you press play on something, Gelato asks AIOStreams what is available, takes the answer and <i>writes it down against that episode</i> as an extra version of it, so that opening the page again is instant instead of another round of searching. That is a sensible thing to do and it has one consequence: a bad answer sticks. If a result failed to play, tightening your filters will not help that episode, because nothing goes back to ask again, and Gelato does not clear those old entries out on its own either. Purging the streams throws the written-down answers away and nothing else, so the next play is a genuine fresh search under the new settings.
-<br><br>Do the three in that order, then try the same episode again. If it fails identically before you have purged, you have not tested your change yet.</div>
-
-<h3>Step H, test one play</h3>
-<ol class="steps">
-  <li>Open Jellyfin in a browser on your computer rather than on a TV app, pick a film Gelato has filled in, and press play.
-    <div class="see">You'll see: a few seconds of nothing while Gelato asks AIOStreams for a stream and AIOStreams resolves it through TorBox, then the film starts. Nothing is written to disk.</div>
-    <div class="why"><b>Why a browser first:</b> if something is wrong, a browser tells you plainly and lets you check Jellyfin's Dashboard logs in the next tab. A TV app tends to fail with a single unhelpful message, which turns a two minute fix into an evening.</div>
-  </li>
-  <li>Play one episode of a series too, since the series path uses the metadata fetcher from Step G and can fail independently of films.</li>
-</ol>
-
-<h3>Step I, keep it on direct play, now that the file lives somewhere else</h3>
-<div class="box learn"><span class="lbl">Understand this: transcoding was expensive before, and it's worse now</span>
-Back in the Jellyfin section you met the two ways a video can reach a screen: <b>direct play</b>, where the server hands the file over untouched, and <b>transcoding</b>, where the server rebuilds it on the fly because the app can't cope. That mattered then. It matters far more now, and it's worth understanding why rather than just being told.
-<br><br>When the file sat on your own drive, transcoding meant the server reading from a disk two feet away, which is about as fast and reliable as anything gets. Nothing on this build sits on a disk any more. The video lives on your debrid provider's servers, out on the internet, and arrives through your broadband connection.
-<br><br>That changes the maths in two ways. To rebuild a video on the fly the server has to read the source <i>faster than it plays</i>, so it's fighting to stay ahead over a connection it doesn't control. And the moment somebody skips forward, the server has to stop and ask for a chunk from the middle of a file it doesn't hold, wait for that request to travel out and come back, and only then resume. That pause is exactly the buffering people describe when they say seeking feels sluggish, and it doesn't happen at all during direct play, because the app is fetching its own data in a steady line and the server never gets involved.
-<br><br>So the size limit you set in Step E and the app you chose back in the Jellyfin section are not two separate bits of housekeeping. They are the same decision approached from both ends: <b>keep the file small enough to move comfortably, and use an app capable enough that the server is never asked to touch it.</b></div>
-<ol class="steps">
-  <li>Play something and, while it's playing, open <b>Dashboard</b> in Jellyfin and look at the active session. It tells you plainly whether the stream is direct playing or transcoding, and if it's transcoding it gives a reason in words.
-    <div class="see">You'll see: ideally the words <b>Direct playing</b>. If instead you see <b>Transcoding</b> with a reason such as "the video codec is not supported", that reason is naming the app, not the file. The same file in a capable app plays untouched.</div>
-    <div class="why"><b>Why this screen is worth knowing by heart:</b> it turns a vague complaint ("it's laggy") into a specific fact you can act on. Nearly every media server problem people give up on is one they never checked here first.</div>
-  </li>
-  <li>If it says transcoding and you were watching in a browser or the official mobile app, try the same title again in one of the apps named in the Jellyfin section, and check the Dashboard once more.
-    <div class="why"><b>Why the browser is the worst case:</b> a web page is only allowed to play the small handful of formats the browser itself understands, so it refuses the most, which forces the server to work the hardest. It's a fine tool for testing, as Step H used it, and a poor one for actually watching.</div>
-  </li>
-</ol>
-<div class="box plain"><span class="lbl">Subtitles, and the trap inside them</span>
-Subtitles come in three kinds and the differences are not cosmetic, so it is worth learning all three now rather than meeting them one confusing evening at a time.
-<br><br><b>Plain text subtitles</b> are files ending <code>.srt</code>: words with timings and nothing else. Any app can draw those over the picture for free, and they are the easy case.
-<br><br><b>Image subtitles</b> (<b>PGS</b> and <b>VobSub</b>, very common inside <code>.mkv</code> rips taken from discs) are not words at all. They are tiny pictures of words. There is no way to draw a picture as text, so it has to be painted onto the video itself, and painting anything onto the video means rebuilding every frame, which is a transcode.
-<br><br><b>Styled text subtitles</b> (<code>ASS</code> and <code>SSA</code>, which almost every anime release uses) sit awkwardly between the two. They are real text, so they are not the picture problem, but they also carry their own fonts, positions, colours and sometimes animation, because fansubbers use them to label signs and shop fronts in the scene. Drawing them properly needs a small typesetting engine, and an app either has one or it doesn't. If it doesn't, the server has to paint them on, and you are back to a transcode even though the file itself was small and well behaved.
-<br><br>That third case is why "just pick smaller files" is not the whole answer, and it is the one place where the tidy story in this section has a genuine edge to it. The apps named in the Jellyfin section all carry that typesetting engine, so they handle image subtitles and styled subtitles alike without asking the server to touch anything. Televisions are the exception, as they were before: on a Samsung or LG set, a heavily styled anime track may still force the server to burn the subtitles in. If that happens the Dashboard will say so in words, and the honest fix is to watch that particular thing on a phone or a computer rather than to fight the television.</div>
-
-<div class="box safe"><span class="lbl">Only tear the old stack down once this one plays</span>
-If you are moving here from the old download stack rather than starting fresh, resist removing it until a title has actually streamed through Gelato at least once. The moment to retire Sonarr, Radarr, Prowlarr, qBittorrent, gluetun and Jellyseerr is after the new route is proven, not before, so the household is never left with a library that neither downloads nor streams. Once Gelato plays cleanly, the old <code>docker compose down</code> on the arr stack is safe to run.</div>
 
 <div class="recap"><span class="lbl">Recap</span>
-<ul><li>This route keeps almost nothing on disk. It fills the library with catalogue entries rather than files, and fetches the real video on demand when someone presses play, the shop window rather than the warehouse.</li>
-<li>Three pieces do it: <b>TorBox</b> (the paid engine that makes playback instant), <b>AIOStreams</b> (the adapter that gathers sources into one feed, run as a Docker container), and the <b>Gelato</b> plugin inside Jellyfin (which writes the catalogue entries and resolves a stream on play).</li>
-<li>The trade is convenience for ownership: it fills itself and never stalls, but it rents from an outside service, so nothing plays if that service or subscription goes away. <b>Gelato needs Jellyfin 10.11 or newer.</b></li>
-<li>Because the video now arrives over the internet rather than off a local disk, <b>transcoding hurts far more than it used to</b>, and skipping forward is where you feel it first.</li>
-<li>Two ideas prevent nearly all of it: <b>refuse the files that cause trouble</b> in AIOStreams, which means the size limits plus the two attribute exclusions, and <b>use a capable app</b> so the server is never asked to rebuild anything. Jellyfin's Dashboard tells you which of the two is happening at any moment.</li>
-<li>The size limits are compared against <b>the episode you are handed</b>, not the season bundle it came out of, so a low series limit does not quietly cost you season packs.</li></ul></div>
+<ul><li><b>Docker</b> runs several small lightweight app packages inside one LXC container, all described together in one <b>docker-compose.yml</b> recipe file, rather than each app getting its own full Proxmox container.</li>
+<li>Nothing on your machine connects to strangers, because <b>TorBox</b> does that on its own machines, which is why there is no VPN, no kill switch and no stalling in this build.</li>
+<li>A <b>symlink</b> is a signpost rather than a file, which is what lets a huge library take up almost no disk. Its one condition is that everything reading it must be able to reach where it points.</li>
+<li><b>FUSE</b> lets a program stand in for a disk, which is how a rented warehouse ends up looking like an ordinary folder. Both the Docker container and the Jellyfin container need their own view of that folder, at the same name.</li></ul></div>
 
 <div class="quiz"><span class="lbl">Check yourself</span>
-<p class="q">Q1. Your library shows thousands of films but the disk is nearly empty. Where is the actual video for a film you have not watched yet?</p>
-<p class="a">Nowhere on your disk. Each title is only an entry in Jellyfin's catalogue until you press play, at which point Gelato fetches the real stream on demand from your debrid engine through AIOStreams. Nothing is stored unless you deliberately pin it later.</p>
-<p class="q">Q2. What is the one thing that stops working if your TorBox subscription lapses, and why is that different from the old download setup?</p>
-<p class="a">Playback stops entirely, because the debrid engine that actually serves the video is gone, leaving only empty placeholder cards. The old download setup kept real files on your own disk, so they would keep playing regardless of any subscription.</p>
-<p class="q">Q3. Why does transcoding cause more trouble here than it would if your films were sitting on the drive in the machine?</p>
-<p class="a">Because the source is out on the internet rather than two feet away. To rebuild the video on the fly the server has to read it faster than it plays over a connection it doesn't control, and every time somebody skips forward it has to request a chunk from the middle of a file it doesn't hold and wait for that round trip.</p>
-<p class="q">Q4. Somebody turns on subtitles and a film that was playing fine starts stuttering. What's happening?</p>
-<p class="a">The subtitle track is almost certainly image-based (PGS or VobSub), which cannot be drawn as text and has to be painted onto the video itself. That means rebuilding every frame, which is a transcode. A capable app renders those itself instead of asking the server to do it. A heavily styled ASS track can cause the same thing on a television, for a different reason: it is real text, but it needs a typesetting engine the television doesn't have.</p>
-<p class="q">Q5. You set a 5GB limit on series. A season bundle weighing 40GB contains the episode you want. Does your limit throw it away?</p>
-<p class="a">No. The limit is compared against the single episode being handed to you, not the bundle it came from, so an episode of 1.4GB passes regardless of what the whole season weighs. The bundle's total is recorded separately and is never checked against that number.</p>
-<p class="q">Q6. Why refuse files tagged "DV Only" while happily accepting other Dolby Vision files?</p>
-<p class="a">Because most Dolby Vision files carry it as an extra layer on top of an ordinary picture, so a screen that doesn't understand it just ignores the layer and looks normal. "DV Only" means the file has nothing underneath, and on a screen that doesn't understand it the picture comes out green and purple. Refusing only that case removes the files that break and keeps every file that would have been fine.</p></div>
+<p class="q">Q1. What does Prowlarr actually do, and why is it a separate app rather than a setting inside Sonarr and Radarr?</p>
+<p class="a">It manages the list of search sites in one central place. Keeping it separate means that list is configured once rather than duplicated inside both organisers.</p>
+<p class="q">Q2. Why does this build need no VPN, when the equivalent download setup always does?</p>
+<p class="a">Because nothing on your machine ever connects to other people's machines. TorBox makes those connections on its own hardware, and your server only makes one ordinary web request to one company, which is nothing a VPN was ever protecting you from.</p>
+<p class="q">Q3. Your television folder is full of correctly named episodes and none of them play. What is the most likely cause?</p>
+<p class="a">The files are symlinks pointing at <code>/mnt/decypharr</code>, and whatever is trying to play them cannot see that folder. Either the mount in the Jellyfin container has stopped, or the mount propagation in the Docker container is not set, so the signposts point at nothing.</p>
+<p class="q">Q4. Why is "download uncached" worth switching on, and what does it change?</p>
+<p class="a">Cached means somebody has already asked TorBox for that exact copy, so it is ready instantly. Uncached means nobody has, so it has to be fetched first. With the switch off, anything uncached is simply reported as unavailable and quietly vanishes from the results, which affects older shows and most anime. With it on, TorBox fetches it while Sonarr waits in its queue like any normal download.</p></div>
+
+<h3>Step H, wiring Sonarr and Radarr</h3>
+<p>Open Sonarr's own address, which is your Docker host on port <code>8989</code>. Go to <b>Settings</b>, then <b>Media Management</b>, then <b>Root Folders</b>, and add both <code>/media/anime</code> and <code>/media/tv</code> as two separate root folders rather than just the one. Then open Radarr on port <code>7878</code> and point its single root folder at <code>/media/movies</code>.</p>
+<div class="why"><b>Why anime gets its own folder:</b> whenever you add a show, Sonarr lets you choose which root folder it goes into and lets you set its <b>Series Type</b> to <code>Anime</code> or <code>Standard</code> right there on the add screen. That type setting is what actually fixes episode numbering, because anime is frequently numbered differently to Western television, often as one continuous count running across the whole show rather than resetting each season, which is called <b>absolute numbering</b>. Keeping the two in separate folders is what makes it obvious which type each new show should get. Films have no equivalent quirk, which is why Radarr gets one folder.</div>
+
+<div class="box why"><span class="lbl">Matching this in Jellyfin</span>
+Worth setting up three separate libraries in Jellyfin too, rather than one covering everything: Anime, TV Shows and Movies, each pointed at its matching folder and each set to the correct content type when you create it. This is what gives anime its own clean row on the home screen instead of being buried alphabetically among everything else, and it helps Jellyfin fetch the right kind of artwork and episode information for each.</div>
+
+<p>Now connect Decypharr as the download client both organisers hand their jobs to. In <b>both</b> Sonarr's and Radarr's Settings, under <b>Download Clients</b>, click the plus and choose <b>qBittorrent</b> from the list. Fill it in like this:</p>
+<ul>
+<li><b>Name:</b> <code>Decypharr</code></li>
+<li><b>Host:</b> <code>decypharr</code></li>
+<li><b>Port:</b> <code>8282</code></li>
+<li><b>Username:</b> the address of the app you are currently in, so <code>http://sonarr:8989</code> in Sonarr and <code>http://radarr:7878</code> in Radarr</li>
+<li><b>Password:</b> that same app's own API key, found under its <b>Settings</b>, then <b>General</b></li>
+<li><b>Category:</b> <code>sonarr</code> in Sonarr, <code>radarr</code> in Radarr</li>
+</ul>
+<div class="why"><b>Why you pick qBittorrent when there is no qBittorrent:</b> this is the impersonation from the opening explanation, seen from the other side. Sonarr has a fixed list of download programs it knows how to talk to and Decypharr is not on it, so Decypharr speaks the language of the most common one on that list instead. Sonarr believes it is talking to qBittorrent, and everything works, because the conversation is identical.</div>
+<div class="why"><b>Why the username and password fields hold such strange values:</b> because Decypharr is not really a download client, it needs something a real one would never need, which is a way to talk <i>back</i> to the app that gave it the job. It borrows these two fields to collect that. So the username is where Sonarr lives and the password is the key that gets in, and Decypharr uses them to tell Sonarr the moment something is ready rather than making Sonarr keep asking. It looks wrong and it is deliberate.</div>
+<div class="why"><b>Why the host is <code>decypharr</code> and not an address:</b> everything in this stack was started from the same compose file, so Docker lets these apps find each other by the names in that file. No IP addresses are needed between them, and none of them break if the Docker container's own address ever changes.</div>
+<div class="safe"><b>You do not need a Remote Path Mapping here.</b> If you have set up this kind of stack before, this is the step where a mismatch usually bites: the download program calls a folder one thing and the organiser calls the same folder something else, and finished items sit there forever without importing. It does not happen here because the compose file deliberately gives Decypharr, Sonarr and Radarr the same <code>/media</code> and the same <code>/mnt</code>, with the same names inside every one of them. That was the point of keeping the names identical earlier. If you ever do see a health warning in Sonarr's <b>System</b> page naming a path mismatch, it means one of those volume lines does not match its neighbours.</div>
+
+<p>One nice connecting step: in Jellyfin's Dashboard, under <b>API Keys</b>, generate a new key. Then in both Sonarr's and Radarr's Settings, under <b>Connect</b>, add a connection of type Jellyfin or Emby using your Jellyfin server's address and that key. This means Jellyfin refreshes its library the moment either one files something, rather than waiting for its next scheduled scan.</p>
+
+<p>Finally, go back to Decypharr's page, into <b>Settings</b> then <b>Arrs</b>, and add both. For each one, the host is <code>http://sonarr:8989</code> or <code>http://radarr:7878</code> and the token is that app's API key, the same two values you just typed into the download client screens.</p>
+<div class="why"><b>Why the same details go in twice, in opposite directions:</b> these are two separate conversations, not one. Sonarr needs to know where to send jobs, which is the download client entry. Decypharr needs to know where to send finished work and, more usefully, to be able to look through Sonarr's library later and check that every signpost still points at something real. Each side has to be introduced to the other.</div>
+
+<h3>Step I, Prowlarr and the search sites</h3>
+<p>Open Prowlarr's own address, port <code>9696</code>, and under <b>Settings</b>, then <b>Apps</b>, add both Sonarr and Radarr. You can use their names here too, <code>sonarr</code> on port <code>8989</code> and <code>radarr</code> on port <code>7878</code>, along with each one's API key from its own Settings. This is what lets Prowlarr push its list of search sites down into both organisers automatically, rather than you configuring the same list twice.</p>
+<div class="box safe"><span class="lbl">Where this guide deliberately stops</span>
+Every piece of plumbing above, the apps, how they are wired to each other, the rented warehouse and the folder trick, stands on its own regardless of what you do next. The one thing left entirely to you is the actual list inside Prowlarr's <b>Settings</b>, then <b>Indexers</b>: which specific search sites to add. That decision, and everything about sourcing content responsibly and legally, is left to you to research and set up in your own way, so there is nothing above to undo whatever you choose there.</div>
+
+<h3>Step J, the family's front door: Jellyseerr</h3>
+<div class="box learn"><span class="lbl">Understand this: what Jellyseerr actually adds</span>
+Right now, adding something new means going into Sonarr or Radarr yourself. Jellyseerr sits in front of all of it: anyone in the family opens its page, searches for a film or show the same way they would on Jellyfin, and clicks Request. Jellyseerr then talks to Sonarr or Radarr to add and monitor that title, which flows through the exact same pipeline already built. Nobody else in the house needs to know Sonarr or Radarr exist at all.</div>
+<p>It is already running from the compose file. Open your Docker host's address on port <code>5055</code> and walk through its setup:</p>
+<ol class="steps">
+  <li>Before connecting, create a dedicated login for it in Jellyfin rather than reusing your own: <b>Dashboard</b>, then <b>Users</b>, then <b>Add User</b>. Call it something like <code>jellyseerr</code>, give it a password, and grant it <b>Administrator</b> access, which it needs in order to see and sync every library.
+    <div class="why"><b>Why not just use your own login:</b> it is good practice to keep the account a person actually signs in with day to day separate from one that exists only for a piece of software to authenticate as, which is called a <b>service account</b>. If it ever needed resetting or was exposed, it is completely independent of your own daily login.</div>
+  </li>
+  <li>Choose <b>Jellyfin</b> as the media server, enter Jellyfin's own address, and sign in with that new account. Select the three libraries you created, then click <b>Start Scan</b> under Manual Library Scan, which is a one-time full read so Jellyseerr's picture of what already exists is accurate from the start.
+    <div class="why"><b>Why connect to Jellyfin at all, when requests go to Sonarr and Radarr:</b> this connection is what lets Jellyseerr show whether something is already in the library, so nobody requests a film you already have, and it is also what lets each family member sign in with their existing Jellyfin account rather than creating yet another login.</div>
+  </li>
+  <li>Under <b>Settings</b>, then <b>Services</b>, add Sonarr, using <code>sonarr</code> as the host and <code>8989</code> as the port along with its API key. Set the default root folder to <code>/media/tv</code>, then fill in the separate <b>Anime</b> section further down the same form with <code>/media/anime</code> as its root folder.
+    <div class="safe"><b>Do not leave Anime Series Type as "Standard".</b> This one is easy to miss and quietly undoes the anime numbering work from Step H. The Anime section has its own <b>Anime Series Type</b> dropdown, separate from the main one above it, and it needs to be set to <b>Anime</b>. That is the value Jellyseerr actually sends to Sonarr whenever it adds something through the Anime section, so leaving it on Standard means anime requested by the family gets treated as ordinary television and numbered wrongly. Pick an actual <b>Anime Quality Profile</b> from its dropdown too rather than leaving it unset, and switch on <b>Enable Scan</b> and <b>Season Folders</b>.</div>
+  </li>
+  <li>Add Radarr the same way: host <code>radarr</code>, port <code>7878</code>, its API key, and root folder <code>/media/movies</code>. <b>Minimum Availability</b> set to <code>Released</code> is a sensible default so only films that have actually come out can be requested. Switch on <b>Enable Scan</b> here too.</li>
+</ol>
+<div class="box safe"><span class="lbl">Worth turning on for a family setup</span>
+Under <b>Settings</b>, then <b>Users</b>, requests from anyone other than you default to needing your approval before they are sent onward, which is a genuinely sensible default for a household. You can grant specific family members permission to auto-approve their own requests later, once you trust what they are asking for, without changing anything else.</div>
+
+<h3>Step K, prove the whole chain works</h3>
+<ol class="steps">
+  <li>In Jellyseerr, request one film that is popular and recent, so it is almost certainly already sitting on TorBox's shelf. Approve it if it asks.
+    <div class="see">You'll see, in this order: the request appearing in Radarr's <b>Activity</b>, then a queue entry showing Decypharr as the client, then the entry disappearing as it imports, then the film appearing in Jellyfin within a minute or two. Play it. Watching each stage light up in turn is worth doing once deliberately, because it is how you will diagnose anything that goes wrong later, by finding the first stage that did not happen.</div>
+  </li>
+  <li>Have a look at what actually landed on your disk, run from the Proxmox host:
+    <span class="cmd">ls -l /mnt/media/movies/*/</span>
+    <div class="see">You'll see: the film listed with an arrow pointing at a path under <code>/mnt/decypharr</code>, and a size measured in bytes rather than gigabytes. That arrow is the signpost. The library is real, the organisation is real, and the video is somewhere else entirely.</div>
+  </li>
+  <li>Now request something older or more obscure, ideally an anime series that finished years ago, which is the case the whole "download uncached" setting exists for.
+    <div class="see">You'll see: it takes minutes rather than seconds, and sits visibly in Sonarr's queue while TorBox fetches it. That waiting is the correct behaviour and it is the thing the old download approach could never do reliably, because there it depended on strangers happening to be online.</div>
+  </li>
+</ol>
+
+<h3>Letting it fill itself: import lists</h3>
+<div class="box learn"><span class="lbl">Understand this: an Import List is not the same thing as Jellyseerr</span>
+Jellyseerr is a person clicking Request: one title, one decision, made by somebody in the family. An <b>Import List</b> is different. It is Sonarr or Radarr itself reaching out on a schedule to some outside "what is popular right now" chart and quietly adding every title on it that is not already in your library, with nobody clicking anything at all. Once one is switched on, your library grows on its own in the background.</div>
+<p>Both apps keep this in the same place: <b>Settings</b>, then <b>Import Lists</b>, then the plus button. The list of available types is long, but a handful are worth trusting over the rest. For Radarr, <b>StevenLu Popular Movies</b> is the simplest thing to start with, since it needs no account or key at all, and <b>Trakt Popular</b> or <b>Trakt Trending</b> are more tunable but need your own Trakt account linked first. For Sonarr, the Trakt lists work well for ordinary television, and <b>AniList</b> is the one worth pointing specifically at your anime folder, since it can pull from AniList's own trending charts without needing an account.</p>
+<p>Whichever list you add, the same handful of settings appear, and they are what decide how blind this gets:</p>
+<ol class="steps">
+  <li><b>Root Folder</b>, exactly like adding something by hand. Radarr's lists point at <code>/media/movies</code>, Sonarr's ordinary television lists at <code>/media/tv</code>, and its AniList one at <code>/media/anime</code>.</li>
+  <li><b>Quality Profile</b>. Worth picking something modest rather than your highest, since a list adding titles unattended has nobody checking each one.</li>
+  <li><b>Monitor</b>, which decides how much of a show's back catalogue gets pulled in versus only new episodes going forward.</li>
+  <li><b>Search on Add</b>, the toggle that decides whether blind really means blind. Left off, the list only adds and monitors titles and nothing gets fetched until you trigger it. Switched on, every new title gets an immediate search sent through Prowlarr and fetched through Decypharr the moment it appears. This is the one to turn on if the goal is a library that genuinely fills itself.</li>
+</ol>
+<div class="box safe"><span class="lbl">Worth doing before turning this loose</span>
+Because nothing lands on your disk here, a runaway list cannot fill your drive the way it would in a download setup, which removes the usual worry. What it can do instead is fill your library with hundreds of titles nobody asked for, which makes the thing genuinely harder to browse. Where a list type offers a limit, and Trakt's do, set one rather than leaving it unbounded, and check <b>Activity</b> then <b>Queue</b> every so often early on to get a feel for how fast a given list actually adds things. If a specific title keeps coming back after you remove it, <b>List Exclusions</b> on the same page blocks it permanently without touching the list itself.</div>
+
+<div class="recap"><span class="lbl">Recap</span>
+<ul><li><b>Jellyseerr</b> gives the family their own browsing and request page, so nobody but you ever needs to open Sonarr or Radarr.</li>
+<li>Sonarr and Radarr talk to <b>Decypharr</b> as though it were qBittorrent, and the strange username and password values are how Decypharr talks back to them.</li>
+<li><b>Prowlarr</b> pushes one list of search sites down into both organisers, so that list is only ever configured once.</li>
+<li>An <b>Import List</b> is the same pipeline with nobody clicking Request, and <b>Search on Add</b> is the switch that decides whether it merely watches or actually fetches.</li></ul></div>
+
+<div class="quiz"><span class="lbl">Check yourself</span>
+<p class="q">Q1. Sonarr's download client is set to qBittorrent, but there is no qBittorrent anywhere in this build. Why does that work?</p>
+<p class="a">Decypharr speaks qBittorrent's language deliberately, because Sonarr only knows how to talk to a fixed list of download programs and Decypharr is not on it. Sonarr believes it is talking to qBittorrent, and every message it sends is one Decypharr understands.</p>
+<p class="q">Q2. Why does the download client screen want a web address as the username and an API key as the password?</p>
+<p class="a">Because Decypharr needs a way to talk back to the app that gave it the job, which a real download client never needs, so it borrows those two fields to collect where that app lives and how to get in.</p>
+<p class="q">Q3. Why does anime get its own root folder and its own Series Type rather than sitting with regular television?</p>
+<p class="a">Anime often uses continuous absolute numbering across a whole show rather than resetting each season. Its own folder plus setting the Series Type to Anime is what makes Sonarr number and file it correctly, and it keeps browsing tidy.</p>
+<p class="q">Q4. A drive filling up is the classic risk of turning on an unattended import list. Why is it not the risk here, and what is?</p>
+<p class="a">Because nothing is stored, only signposts a few hundred bytes each, so disk space is effectively unlimited. The real cost is a library cluttered with hundreds of titles nobody asked for, which makes it harder to browse.</p></div>
 
 <div class="box map"><span class="lbl">You'll meet this again</span>
-The rent versus own decision you just made is the same one every organisation makes between <b>streaming or a content delivery network</b> and <b>local storage</b>, and between renting cloud capacity and buying your own hardware, an explicit cost and reliability trade in AZ-900's pricing and <b>capex versus opex</b> topics. Extending an application by dropping in a <b>plugin</b>, and wiring services together by handing one an <b>API token</b> for another, are both everyday patterns in real software integration. And <b>Docker</b> with a <b>docker-compose.yml</b> is still exactly the infrastructure as code idea behind <b>Azure Container Instances</b> and <b>Kubernetes</b> at cloud scale, describing what should run in one file rather than clicking through installs by hand.</div>
+<b>Docker</b> and <b>Docker Compose</b> are two of the most widely used pieces of real infrastructure anywhere, and the same idea sits behind <b>Azure Container Instances</b> and <b>Kubernetes</b> at cloud scale: describing a whole stack of small services in one file rather than clicking through installs is exactly the mindset behind <b>infrastructure as code</b>. Wiring services together by handing one an <b>API token</b> for another is everyday software integration. The rent versus own decision is the same one every organisation makes between renting cloud capacity and buying hardware, an explicit cost and reliability trade in AZ-900's pricing and <b>capex versus opex</b> topics. And <b>mount propagation</b>, <b>symlinks</b> and <b>FUSE</b> are genuine Linux administration, straight out of <b>CompTIA Linux+</b> and the everyday reality of running containers in production.</div>
 
 <!-- ===================== DASHBOARD ===================== -->
 <h2 id="dashboard"><span class="n">11.</span>One front door for the family: a dashboard, a memorable address, and no ports</h2>
@@ -1242,6 +1381,10 @@ ls /opt/homepage/config</span>
           type: jellyfin
           url: http://192.168.1.60:8096
           key: &lt;Jellyfin API key, see the next step&gt;
+    - Jellyseerr:
+        icon: jellyseerr.png
+        href: http://192.168.1.193:5055
+        description: Ask for a film or show
 
 - Network:
     - Pi-hole:
@@ -1259,19 +1402,23 @@ ls /opt/homepage/config</span>
         icon: portainer.png
         href: https://192.168.1.193:9443
         description: See what Docker is running
-    - AIOStreams:
-        icon: docker.png
-        href: http://192.168.1.193:3000/stremio/configure
-        description: Streaming source configuration</span>
+    - Sonarr:
+        icon: sonarr.png
+        href: http://192.168.1.193:8989
+        description: TV and anime
+    - Radarr:
+        icon: radarr.png
+        href: http://192.168.1.193:7878
+        description: Films</span>
     <p>Save with <b>Ctrl+O</b>, Enter, then exit with <b>Ctrl+X</b>. The dashboard notices the change and redraws itself within a few seconds, no restart needed.</p>
-    <div class="why"><b>Reading the shape of it:</b> the same indentation rules from the AIOStreams recipe file apply here, this is YAML again. The three names sitting furthest to the left, <b>Media</b>, <b>Network</b>, <b>Infrastructure</b>, are <b>groups</b>, nothing more than a heading drawn above the tiles listed under them. Each tile below needs at minimum an <code>icon</code>, an <code>href</code> (where clicking it takes you), and a <code>description</code>. The optional <code>widget</code> block is what turns a plain clickable tile into one that also shows a live number pulled from that service, which is why Portainer and AIOStreams above are left as plain tiles for now, each would need its own separately fetched key to go further, worth coming back for once the pattern below feels familiar.</div>
+    <div class="why"><b>Reading the shape of it:</b> the same indentation rules from the <code>docker-compose.yml</code> in the last section apply here, this is YAML again. The three names sitting furthest to the left, <b>Media</b>, <b>Network</b>, <b>Infrastructure</b>, are <b>groups</b>, nothing more than a heading drawn above the tiles listed under them. Each tile below needs at minimum an <code>icon</code>, an <code>href</code> (where clicking it takes you), and a <code>description</code>. The optional <code>widget</code> block is what turns a plain clickable tile into one that also shows a live number pulled from that service, which is why Jellyseerr, Portainer, Sonarr and Radarr above are left as plain tiles for now, each would need its own separately fetched key to go further, worth coming back for once the pattern below feels familiar.</div>
     <div class="why"><b>Where the icons come from:</b> the app ships already knowing a large shared library of app icons by name alone, <code>jellyfin.png</code> and <code>pihole.png</code> among them, so typing the name is enough. Nothing to download or host yourself.</div>
   </li>
   <li>Get Jellyfin's half of the widget working. In Jellyfin, go to <b>Dashboard</b>, then look down to the <b>Advanced</b> group and open <b>API Keys</b>. Click the <b>+</b>, and give it a name like <code>homepage</code>. Copy the key it generates straight into the <code>key</code> line under Jellyfin in the file above, and into your notes.
     <div class="why"><b>What this key actually is:</b> the same idea as the TorBox token from the last section, a credential rather than a password. This one lets the dashboard ask Jellyfin questions like "what's playing right now" without logging in as an actual person. Naming it something recognisable matters, since Jellyfin lists every key you've issued by name, and lets you revoke one individually the day it's no longer needed.</div>
   </li>
   <li>Test it: visit <code>&lt;its-ip&gt;:3000</code> again.
-    <div class="see">You'll see: three named groups of tiles. Jellyfin and Pi-hole each show a live line of numbers beneath their name, Jellyfin's current stream count, Pi-hole's queries blocked today. Portainer and AIOStreams stay plain clickable tiles for now, exactly as expected.</div>
+    <div class="see">You'll see: three named groups of tiles. Jellyfin and Pi-hole each show a live line of numbers beneath their name, Jellyfin's current stream count, Pi-hole's queries blocked today. Jellyseerr, Portainer, Sonarr and Radarr stay plain clickable tiles for now, exactly as expected.</div>
   </li>
 </ol>
 
@@ -1351,7 +1498,7 @@ The words on a Homepage tile are nothing more than a heading you wrote, Homepage
   </li>
   <li>Notice the two addresses in that block are different on purpose. <code>href</code>, the link the tile actually opens when clicked, now uses the memorable <code>nadrijellyfin.com</code> address built earlier in this section. The <code>widget</code>'s own <code>url</code>, the one Homepage quietly asks in the background every so often for a live number, stays pointed straight at Jellyfin's real address rather than routed through the proxy.
     <div class="why"><b>Why not send both through the nicer address:</b> nothing stops you, the network path works either way. But the widget line runs constantly and automatically in the background, and every extra piece it depends on, here, going through the reverse proxy rather than straight to Jellyfin, is one more thing that could be down when it asks. The href only matters at the single moment someone actually clicks it, so that's the one place the friendlier look costs nothing to use.</div>
-    <div class="safe"><b>The same idea extends to your other tiles.</b> Pi-hole's <code>href</code> can become <code>http://nadripihole.com</code> now that Step D's redirect sends it straight to its login page. Portainer and AIOStreams don't have a Pi-hole record or proxy entry set up anywhere in this guide, so leave those two on their raw addresses unless you go back and give each its own <code>nadri&lt;service&gt;.com</code> entry first.</div>
+    <div class="safe"><b>The same idea extends to your other tiles.</b> Pi-hole's <code>href</code> can become <code>http://nadripihole.com</code> now that Step D's redirect sends it straight to its login page. Jellyseerr, Portainer, Sonarr and Radarr don't have a Pi-hole record or proxy entry set up anywhere in this guide, so leave those on their raw addresses unless you go back and give each its own <code>nadri&lt;service&gt;.com</code> entry first. Jellyseerr is the one most worth doing, since it is the page the rest of the household will actually use.</div>
   </li>
 </ol>
 
@@ -1724,11 +1871,15 @@ Run <code>df -h /</code> inside each container occasionally, or put a disk usage
   <dt>Local DNS record</dt><dd>A name-to-address entry you add to Pi-hole yourself, only known inside your own house, letting a memorable name like nadrihome.com replace an IP address. Ending it in a real TLD like .com keeps browsers from treating it as a search. Can only ever hold a bare address, never a port or protocol.</dd>
   <dt>Reverse proxy</dt><dd>A container (here, Nginx Proxy Manager) that sits on the normal web port and forwards each incoming name on to the right internal container and port, which is what lets a name work with no port typed after it.</dd>
   <dt>HTTP status code / 301 redirect</dt><dd>A three-digit number every web response carries, telling the browser what happened. 301 means "moved permanently", telling the browser to automatically continue on to a new address, used here to send a bare address on to a service's real path like /admin.</dd>
-  <dt>Gelato</dt><dd>A Jellyfin plugin that fills your library catalogue with entries for thousands of titles and, when you press play, fetches a real stream on demand rather than storing anything. Needs Jellyfin 10.11 or newer.</dd>
-  <dt>AIOStreams</dt><dd>An adapter that gathers many separate streaming sources into one tidy, de-duplicated feed for Gelato to read from. The one piece of this route that runs as a container on your own machine.</dd>
-  <dt>Debrid / TorBox</dt><dd>A paid service that keeps a large pile of already fetched content on fast servers and serves it over an ordinary web connection, which is what makes on-demand playback instant with no seeding or stalling. TorBox is the one this build uses.</dd>
-  <dt>Stub file</dt><dd>A small file that stands in for something real. Gelato writes exactly one, called <code>stub.txt</code>, into each of its two folders, purely so Jellyfin has something to find and will scan the folder. The titles themselves are database entries, not files.</dd>
-  <dt>Manifest</dt><dd>The single web address AIOStreams produces once configured, which you paste into Gelato so the plugin knows where to pull its catalogue and streams from.</dd>
+  <dt>Sonarr / Radarr</dt><dd>The two organisers. Sonarr keeps track of TV series and anime, Radarr of films. Each holds a wanted list, asks the search desk for anything missing, hands the job to a download client, then renames and files whatever comes back into the folders Jellyfin watches.</dd>
+  <dt>Prowlarr</dt><dd>The search desk. It holds your list of indexers (the sites that keep catalogues of what is available) in one place, and every organiser asks it rather than each keeping its own list. Add a site once here and both Sonarr and Radarr can use it.</dd>
+  <dt>Jellyseerr</dt><dd>The request counter. A friendly page where anyone in the house searches for a film or show and asks for it, without ever seeing Sonarr or Radarr. Requests can be set to arrive for your approval first.</dd>
+  <dt>Debrid / TorBox</dt><dd>A paid service that fetches content on its own machines and then serves it to you over an ordinary web connection. Because the fetching happens on their hardware rather than yours, your server never makes a peer-to-peer connection and needs no VPN.</dd>
+  <dt>Decypharr</dt><dd>The translator between the two. It pretends to be a download client so Sonarr and Radarr will talk to it, passes every job on to TorBox, and presents the results back as an ordinary folder on your machine. Also runs a WebDAV server, which is a way of serving a folder over the web, so other machines can see the same shelf.</dd>
+  <dt>Symlink</dt><dd>A file that is nothing but a signpost to another file somewhere else. It takes almost no space, and anything that opens it lands on the real file transparently. This is what Sonarr files into your library instead of a copy, which is why a library of thousands of titles takes up almost no disk.</dd>
+  <dt>FUSE</dt><dd>Filesystem in Userspace. It lets an ordinary program present something that is not a disk (here, files held on TorBox's servers) as a normal folder, so every other program can browse and read it without knowing the difference.</dd>
+  <dt>Mount propagation</dt><dd>The setting that decides whether a folder appearing inside one container is also visible to others sharing that path. Marked <code>rshared</code> on the side that creates it and <code>rslave</code> on the sides that need to see it.</dd>
+  <dt>Import list</dt><dd>A subscription that feeds titles into Sonarr or Radarr automatically, such as a weekly popular films list or your own Trakt watchlist, so the library keeps filling with no request from anyone.</dd>
   <dt>Docker / Docker Compose</dt><dd>Docker runs small, lightweight app packages (container images) inside one Linux container, sharing its resources rather than each getting a full separate one. Docker Compose is a single recipe file (docker-compose.yml) listing every app to run, what to give it access to, and how they connect, applied in one command.</dd>
   <dt>Immich / Vaultwarden / Home Assistant / Uptime Kuma / Proxmox Backup Server</dt><dd>Future containers on the roadmap: private photo backup, a shared password manager, smart home control, a dashboard that watches your other containers, and a proper off-site backup system.</dd>
   <dt>Hypervisor</dt><dd>Software that runs multiple virtual computers on one physical machine. Proxmox is a Type 1 (bare-metal) one.</dd>
@@ -1756,7 +1907,7 @@ Run <code>df -h /</code> inside each container occasionally, or put a disk usage
   <dt>Transcoding</dt><dd>The fallback: the server rebuilds the video into a different format on the fly because the app can't handle the original. Expensive, and the cause of most stuttering and buffering. Usually triggered by a weak app rather than a weak server.</dd>
   <dt>Quick Sync</dt><dd>A dedicated video-processing circuit built into Intel chips that handles transcoding far more efficiently than the main processor. Worth switching on as a safety net, but it makes the fallback cheaper rather than unnecessary.</dd>
   <dt>MPV</dt><dd>A playback engine that decodes essentially any video format, including image-based subtitles. Apps built around it (Streamyfin, Findroid, Jellyfin Media Player) direct play almost everything, which is why they're named specifically rather than left to preference.</dd>
-  <dt>Remux</dt><dd>An untouched copy straight from a disc with nothing compressed, often 60GB or more for a single film. Refused deliberately in the AIOStreams size filter, since nothing in a normal house benefits from moving that much data in real time.</dd>
+  <dt>Remux</dt><dd>An untouched copy straight from a disc with nothing compressed, often 60GB or more for a single film. Worth leaving out of a Quality Profile in Sonarr and Radarr, since nothing in a normal house benefits from moving that much data at once.</dd>
   <dt>Encode (AVC, HEVC, AV1)</dt><dd>The method used to squeeze video down before sending it. AVC is the old one everything can play, HEVC is the newer one every current screen handles, and AV1 is the cleverest but is refused in this build because most televisions and older phones cannot decode it and hand the work back to the server.</dd>
   <dt>Dolby Vision / DV Only</dt><dd>A brighter, richer colour format. Usually carried as an extra layer over an ordinary picture, so screens that don't understand it look normal anyway. Files tagged DV Only have no ordinary picture underneath and come out green and purple on those screens, which is why only that case is excluded.</dd>
   <dt>ASS / SSA subtitles</dt><dd>Styled text subtitles, standard in anime, carrying their own fonts, positions and colours so signs in the scene can be labelled. Real text rather than pictures, but drawing them needs a typesetting engine, and an app without one makes the server burn them into the picture instead.</dd>
@@ -1810,7 +1961,7 @@ var META={
  proxmox:['build','45 min','warn:wipes the disk'],linux:['build','20 min','reversible'],
  pihole:['build','40 min','reversible'],storage:['build','40 min','warn:formats the drive'],
  jellyfin:['build','30 min','reversible'],remote:['build','50 min','reversible'],
- automate:['build','45 min','needs Jellyfin 10.11+'],dashboard:['build','45 min','reversible'],
+ automate:['build','2 evenings','needs a TorBox subscription'],dashboard:['build','45 min','reversible'],
  samba:['build','30 min','reversible'],nextcloud:['build','40 min','reversible'],ops:['read','10 min read'],roadmap:['ref','reference'],next:['read','5 min read'],glossary:['ref','reference']
 };
 
