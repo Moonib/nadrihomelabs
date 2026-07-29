@@ -1044,6 +1044,11 @@ findmnt -o TARGET,PROPAGATION /mnt</span>
 mkdir -p /mnt/media/tv
 mkdir -p /mnt/media/movies
 mkdir -p /mnt/media/symlinks</span>
+<div class="box safe"><span class="lbl">Check which machine you are typing into first</span>
+This is the easiest mistake to make in the whole section, and it is silent, so it is worth thirty seconds before you press enter. The commands above belong on the <b>Proxmox host</b>, not inside the Docker container.
+<br><br>The reason it catches people is that one drive has two different names depending on where you are standing. On the host it is <code>/mnt/media</code>. Inside the Docker container the very same drive is called <code>/media</code>, because that is what the <code>mp=/media</code> half of the mount point command decided back in the storage section. Two names, one drive.
+<br><br>The trap is that <code>/mnt/media</code> also <i>works</i> as a command inside the container, and appears to succeed. It just does something entirely different: <code>/mnt</code> in there is an ordinary empty folder on the container's own small disk, so you quietly get four new folders on the wrong drive while the ones you wanted never get made. Nothing errors, and the problem only surfaces later when Sonarr cannot find its root folders.
+<br><br>If you are unsure which machine a shell is on, the prompt tells you: <code>root@nas01</code> is the Proxmox host, <code>root@docker</code> is inside the container. And <code>df -h /mnt/media</code> settles it either way, since on the host it reports your big drive and inside the container it reports the container's own disk.</div>
 
 <div class="box learn"><span class="lbl">Understand this: which drive these folders should be on, and why it barely matters</span>
 This is the natural place to wonder whether these belong on the fast SSD instead of the big hard drive, so here is the reasoning rather than just an instruction. Leave them exactly where they are, as subfolders of the media mount on your big drive, and the rest of this box is why.
